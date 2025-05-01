@@ -173,12 +173,18 @@ class ComicTranslator:
         self.selected_translated = ttk.Label(selected_frame, text="")
         self.selected_translated.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W+tk.E) # Allow horizontal expansion
         
+        # 添加用于显示框编号和坐标的标签
+        ttk.Label(selected_frame, text="Box Info:").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
+        self.selected_box_info = ttk.Label(selected_frame, text="")
+        self.selected_box_info.grid(row=2, column=1, padx=5, pady=5, sticky=tk.W+tk.E) # Allow horizontal expansion
+        
         # Configure column 1 to expand and take available width
         selected_frame.grid_columnconfigure(1, weight=1)
         
         # Add these labels to the list for wraplength updates
         self.selected_region_labels.append(self.selected_original)
         self.selected_region_labels.append(self.selected_translated)
+        self.selected_region_labels.append(self.selected_box_info) # 添加新标签到列表
         
         # Log
         log_frame = ttk.LabelFrame(right_frame, text="Log")
@@ -209,6 +215,16 @@ class ComicTranslator:
 
         self.results_canvas.pack(side="left", fill="both", expand=True)
         results_scrollbar.pack(side="right", fill="y")
+
+        # Bind mouse wheel scrolling (cross-platform)
+        # Bind to the canvas itself
+        self.results_canvas.bind_all("<MouseWheel>", self._on_mousewheel) # Windows/Mac
+        self.results_canvas.bind_all("<Button-4>", self._on_mousewheel)   # Linux scroll up
+        self.results_canvas.bind_all("<Button-5>", self._on_mousewheel)   # Linux scroll down
+        # Bind to the scrollable frame as well, in case events target it directly
+        self.scrollable_frame.bind_all("<MouseWheel>", self._on_mousewheel) # Windows/Mac
+        self.scrollable_frame.bind_all("<Button-4>", self._on_mousewheel)   # Linux scroll up
+        self.scrollable_frame.bind_all("<Button-5>", self._on_mousewheel)   # Linux scroll down
 
         # Bind clipboard
         self.root.bind("<Control-v>", self.paste_image)
@@ -586,6 +602,9 @@ class ComicTranslator:
             item = self.translations[idx]
             self.selected_original.config(text=item["original_text"])
             self.selected_translated.config(text=item["translated_text"])
+            # 显示框编号和坐标
+            box_info_text = f"Box {idx + 1}: {item['bounding_box']}"
+            self.selected_box_info.config(text=box_info_text)
     
     def highlight_bounding_box(self, idx):
         """高亮显示选中的边界框"""
@@ -629,6 +648,7 @@ class ComicTranslator:
         """清除选中状态"""
         self.selected_original.config(text="")
         self.selected_translated.config(text="")
+        self.selected_box_info.config(text="") # 清除框信息
             
     def start_translation(self):
         if not self.image_data:
@@ -730,152 +750,245 @@ class ComicTranslator:
                      self.update_status("Streaming Response") # Update status when first data arrives
                      first_chunk_received = True
 
-                if chunk.choices[0].delta.content:
-                    chunk_text = chunk.choices[0].delta.content
-                    collected_messages += chunk_text
-                    self.log_text.delete(1.0, tk.END)
-                    self.log_text.insert(tk.END, collected_messages)
-                    self.log_text.see(tk.END)
-                    
-                    # 检查是否有完整的JSON对象可以解析
-                    lines = collected_messages.split("\n")
-                    print(collected_messages)
-                    
-                    for line in lines:
-                        line = line.strip()
-                        if line and (line.startswith("{") and line.endswith("}")):
-                            try:
-                                # 尝试解析单行JSON
-                                item = json.loads(line)
-                                # Use new keys: box_2d, org, res
-                                if "box_2d" in item and "org" in item and "res" in item:
-                                    bounding_box = item.get("box_2d", [])
-                                    original_text = item.get("org", "")
-                                    translated_text = item.get("res", "")
+                # Check if choices exist before accessing delta content
+                if chunk.choices:
+                    # Check if delta content exists and is not None
+                    if chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        chunk_text = chunk.choices[0].delta.content
+                        collected_messages += chunk_text
+                        # Update log view efficiently by inserting only the new chunk
+                        self.log_text.insert(tk.END, chunk_text)
+                        self.log_text.see(tk.END)
 
-                                    # 检查这个结果是否已经添加过 (using internal keys for consistency)
-                                    if not any(
-                                        t["bounding_box"] == bounding_box and
-                                        t["original_text"] == original_text and
-                                        t["translated_text"] == translated_text
-                                        for t in self.translations
-                                    ):
-                                        # 添加到翻译结果列表 (using internal keys)
-                                        self.translations.append({
-                                            "bounding_box": bounding_box,
-                                            "original_text": original_text,
-                                            "translated_text": translated_text
-                                        })
+                        # --- Process potentially complete JSON lines ---
+                        # Find the last newline to process complete lines only
+                        # Using accumulated 'collected_messages' which now contains the *entire* history
+                        # We need to parse based on the *current state* of the accumulated text
+                        lines_to_check = collected_messages.split('\n')
+                        self.log(f"translate_image: Checking {len(lines_to_check)} potential lines from accumulated text.")
 
-                                        # Update the UI (add card) instead of Treeview
-                                        self.add_result_card(
-                                            bounding_box=bounding_box,
-                                            original_text=original_text,
-                                            translated_text=translated_text,
-                                            index=len(self.translations) - 1 # Pass the index
+                        processed_keys_in_stream = set() # Track items added during stream
+
+                        # Iterate through lines found in the *current* accumulated text
+                        for idx, line in enumerate(lines_to_check):
+                            line = line.strip()
+                            # Check if it looks like a complete JSON object
+                            if line.startswith("{") and line.endswith("}"):
+                                try:
+                                    self.log(f"translate_image: Attempting to parse potential JSON line {idx}: {line}")
+                                    item = json.loads(line)
+
+                                    if "box_2d" in item and "org" in item and "res" in item:
+                                        bounding_box = item.get("box_2d", [])
+                                        original_text = item.get("org", "")
+                                        translated_text = item.get("res", "")
+
+                                        item_key = (tuple(bounding_box), original_text, translated_text)
+
+                                        # Check if already added globally or in this specific stream run
+                                        is_already_added = any(
+                                            tuple(t["bounding_box"]) == tuple(bounding_box) and
+                                            t["original_text"] == original_text and
+                                            t["translated_text"] == translated_text
+                                            for t in self.translations
                                         )
 
-                                        # 绘制边界框
-                                        self.draw_bounding_boxes()
-                            except json.JSONDecodeError:
-                                # 不是有效的JSON，继续收集
-                                pass
-                    
-                    self.root.update()
-                    time.sleep(0.01)  # Small delay to ensure UI updates
-            
-            # 最终处理，确保所有内容都被解析
-            self.process_jsonl_response(collected_messages)
-            
-            # 处理完成
+                                        if item_key not in processed_keys_in_stream and not is_already_added:
+                                            current_index = len(self.translations)
+                                            self.log(f"translate_image: Adding new translation item at index {current_index} from streamed line.")
+                                            self.translations.append({
+                                                "bounding_box": bounding_box,
+                                                "original_text": original_text,
+                                                "translated_text": translated_text
+                                            })
+                                            processed_keys_in_stream.add(item_key) # Mark as processed in this stream pass
+
+                                            self.log(f"translate_image: Calling add_result_card for index {current_index}")
+                                            self.add_result_card(
+                                                bounding_box=bounding_box,
+                                                original_text=original_text,
+                                                translated_text=translated_text,
+                                                index=current_index
+                                            )
+
+                                            self.log("translate_image: Calling draw_bounding_boxes after adding card")
+                                            self.draw_bounding_boxes()
+                                        elif is_already_added:
+                                             self.log(f"translate_image: Skipping duplicate item (already in global list): {item_key}")
+                                        else: # Already processed in this stream pass
+                                             self.log(f"translate_image: Skipping duplicate item (already processed this stream): {item_key}")
+                                    else:
+                                        self.log(f"translate_image: Parsed JSON object missing required keys: {item}")
+                                except json.JSONDecodeError as e:
+                                    # This is expected if a line is not complete JSON yet
+                                    if idx == len(lines_to_check) - 1 and not line.endswith("}"):
+                                         # Likely an incomplete line at the end, ignore decode error for now
+                                         self.log(f"translate_image: JSONDecodeError likely on incomplete line {idx}: {e}. Line: '{line}'")
+                                    else:
+                                         # Could be malformed JSON within the stream
+                                         self.log(f"translate_image: JSONDecodeError on potentially complete line {idx}: {e}. Line: '{line}'")
+                                    pass # Continue collecting data
+                                except Exception as inner_e: # Catch other errors during processing
+                                     self.log(f"translate_image: Error processing line {idx}: {inner_e}. Line: '{line}'")
+                                     pass # Try to continue
+
+                        self.root.update()
+                        time.sleep(0.01)  # Small delay for UI responsiveness
+
+            self.log(f"translate_image: Finished streaming loop. Final collected_messages: '{collected_messages}'")
+            # Final processing of any remaining content in collected_messages after the loop
+            self.log("translate_image: Calling process_jsonl_response for final check")
+            self.process_jsonl_response(collected_messages) # Pass the final accumulated string
+            self.log("translate_image: Returned from process_jsonl_response")
+
+            # Processing complete
             self.update_status("Done")
-            
+            self.log(f"translate_image: Translation process finished. Total translations: {len(self.translations)}")
+
         except Exception as e:
             self.update_status("Error")
-            self.log(f"Translation error: {str(e)}")
+            # Use traceback to get more detailed error info including line number
+            import traceback
+            error_details = traceback.format_exc()
+            self.log(f"Translation error in translate_image: {str(e)}\n{error_details}") # Modified log
     
     def process_jsonl_response(self, jsonl_text):
+        self.log(f"process_jsonl_response: Starting with text: '{jsonl_text}'") # Added log
         # 尝试找出所有可能的JSON对象
-        potential_objects = re.findall(r'({.*?})', jsonl_text, re.DOTALL)
-        
-        for obj_str in potential_objects:
+        try: # Add try-except block for regex
+            potential_objects = re.findall(r'({.*?})', jsonl_text, re.DOTALL)
+            self.log(f"process_jsonl_response: Found {len(potential_objects)} potential JSON objects using regex.") # Added log
+        except Exception as regex_e:
+            self.log(f"process_jsonl_response: Error during regex findall: {regex_e}")
+            potential_objects = [] # Ensure it's an empty list if regex fails
+
+        processed_indices_in_final = set() # Track items added in this final pass
+
+        for i, obj_str in enumerate(potential_objects):
+            self.log(f"process_jsonl_response: Processing potential object {i}: {obj_str}") # Added log
             try:
                 item = json.loads(obj_str)
+                self.log(f"process_jsonl_response: Successfully parsed object {i}: {item}") # Added log
                 
                 # 确保是我们期望的格式 (using new keys)
                 if "box_2d" in item and "org" in item and "res" in item:
                     bounding_box = item.get("box_2d", [])
                     original_text = item.get("org", "")
                     translated_text = item.get("res", "")
+                    
+                    item_key = (tuple(bounding_box), original_text, translated_text)
 
-                    # 检查这个结果是否已经添加过 (using internal keys)
-                    if not any(
-                        t["bounding_box"] == bounding_box and
+                    # 检查这个结果是否已经添加过 (including checks against stream and this pass)
+                    if item_key not in processed_indices_in_final and not any(
+                        tuple(t["bounding_box"]) == tuple(bounding_box) and
                         t["original_text"] == original_text and
                         t["translated_text"] == translated_text
                         for t in self.translations
                     ):
                         # 添加到翻译结果列表 (using internal keys)
+                        current_index = len(self.translations)
+                        self.log(f"process_jsonl_response: Adding new translation item at index {current_index}") # Added log
                         self.translations.append({
                             "bounding_box": bounding_box,
                             "original_text": original_text,
                             "translated_text": translated_text
                         })
+                        processed_indices_in_final.add(item_key) # Mark as processed in this final pass
 
                         # Update the UI (add card) instead of Treeview
+                        self.log(f"process_jsonl_response: Calling add_result_card for index {current_index}") # Added log
                         self.add_result_card(
                              bounding_box=bounding_box,
                              original_text=original_text,
                              translated_text=translated_text,
-                             index=len(self.translations) - 1 # Pass the index
+                             index=current_index # Pass the correct index
                         )
 
                         # 绘制边界框
+                        self.log("process_jsonl_response: Calling draw_bounding_boxes after adding card") # Added log
                         self.draw_bounding_boxes()
-            except json.JSONDecodeError:
+                    else:
+                        self.log(f"process_jsonl_response: Skipping duplicate item: {item_key}") # Added log
+                else:
+                     self.log(f"process_jsonl_response: Parsed JSON object missing required keys: {item}") # Added log
+            except json.JSONDecodeError as json_e:
+                self.log(f"process_jsonl_response: JSONDecodeError on object {i}: {json_e}. Object string: '{obj_str}'") # Added log
                 continue
+            except Exception as loop_e: # Catch other potential errors in the loop
+                 self.log(f"process_jsonl_response: Error processing object {i}: {loop_e}. Object string: '{obj_str}'")
+                 continue # Continue to next potential object
+
+        self.log(f"process_jsonl_response: Finished processing. Final translations count: {len(self.translations)}") # Added log
             
     # --- New method to add result cards ---
     def add_result_card(self, bounding_box, original_text, translated_text, index):
         """Adds a new card to the scrollable results frame."""
-        card_frame = ttk.LabelFrame(self.scrollable_frame, padding=(5, 5), text=f"Result {index + 1} / Box: {bounding_box}")
-        card_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.log(f"add_result_card: Called for index {index}. Current total translations: {len(self.translations)}") # Added log
+        try:
+            # Validate index before proceeding (important!)
+            if not (0 <= index < len(self.translations)):
+                 self.log(f"add_result_card: Error - Invalid index {index} provided. Max index should be {len(self.translations) - 1}.")
+                 # Optionally, try to find the item if it was added but index is wrong? Or just return.
+                 # For now, let's log and return to prevent crash.
+                 return 
+                 
+            # Retrieve the item safely using the provided index IF NEEDED.
+            # In this specific function, we receive the data directly, so we don't strictly *need* to access self.translations[index]
+            # but it's good practice to be aware of the index relationship.
 
-        # Make the frame itself clickable to highlight the box
-        card_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
+            card_frame = ttk.LabelFrame(self.scrollable_frame, padding=(5, 5), text=f"Result {index + 1} / Box: {bounding_box}")
+            card_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        # Original Text Label (clickable too)
-        org_label_frame = ttk.Frame(card_frame)
-        org_label_frame.pack(fill=tk.X)
-        ttk.Label(org_label_frame, text="Original:", font=('Arial', 10, 'bold'), width=10).pack(side=tk.LEFT, anchor=tk.NW, padx=(0, 5))
-        # Calculate initial wraplength based on current canvas width
-        initial_wrap = max(100, self.results_canvas.winfo_width() - 100)
-        org_text_label = ttk.Label(org_label_frame, text=original_text, wraplength=initial_wrap)
-        org_text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        org_label_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
-        org_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
+            # Make the frame itself clickable to highlight the box
+            card_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
+            
+            # Use a sub-frame for labels to manage layout better and bind clicks
+            text_area_frame = ttk.Frame(card_frame)
+            text_area_frame.pack(fill=tk.X)
+            text_area_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind this frame too
 
-        # Translated Text Label (clickable too)
-        res_label_frame = ttk.Frame(card_frame)
-        res_label_frame.pack(fill=tk.X, pady=(5, 0))
-        ttk.Label(res_label_frame, text="Translated:", font=('Arial', 10, 'bold'), width=10).pack(side=tk.LEFT, anchor=tk.NW, padx=(0, 5))
-        res_text_label = ttk.Label(res_label_frame, text=translated_text, wraplength=initial_wrap)
-        res_text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        res_label_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
-        res_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
+            # Configure columns within the text area frame
+            text_area_frame.columnconfigure(1, weight=1) # Make the text column expand
 
-        # Store labels for later wraplength updates
-        self.result_labels.append(org_text_label)
-        self.result_labels.append(res_text_label)
+            # Original Text Label (clickable too)
+            ttk.Label(text_area_frame, text="Original:", font=('Arial', 10, 'bold'), width=10).grid(row=0, column=0, sticky=tk.NW, padx=(0, 5))
+            initial_wrap = max(100, self.results_canvas.winfo_width() - 120) # Adjusted wrap calculation slightly
+            org_text_label = ttk.Label(text_area_frame, text=original_text, wraplength=initial_wrap)
+            org_text_label.grid(row=0, column=1, sticky=tk.W+tk.E)
+            org_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
 
-        # Ensure canvas updates its scrollregion after adding card
-        self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
+            # Translated Text Label (clickable too)
+            ttk.Label(text_area_frame, text="Translated:", font=('Arial', 10, 'bold'), width=10).grid(row=1, column=0, sticky=tk.NW, padx=(0, 5), pady=(5,0))
+            res_text_label = ttk.Label(text_area_frame, text=translated_text, wraplength=initial_wrap)
+            res_text_label.grid(row=1, column=1, sticky=tk.W+tk.E, pady=(5,0))
+            res_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
+
+            # Store labels for later wraplength updates
+            self.result_labels.append(org_text_label)
+            self.result_labels.append(res_text_label)
+
+            # Ensure canvas updates its scrollregion after adding card
+            self.results_canvas.update_idletasks() # Ensure widgets are placed
+            self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
+            self.log(f"add_result_card: Successfully added card for index {index}") # Added log
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            self.log(f"add_result_card: Error adding card for index {index}: {str(e)}\n{error_details}") # Added log
 
     def on_card_click(self, index):
         """Handles clicks on a result card."""
-        if 0 <= index < len(self.translations):
-            self.update_selected_display(index)
-            self.highlight_bounding_box(index)
+        self.log(f"on_card_click: Card clicked for index {index}") # Added log
+        try:
+            if 0 <= index < len(self.translations):
+                self.update_selected_display(index)
+                self.highlight_bounding_box(index)
+            else:
+                 self.log(f"on_card_click: Invalid index {index}. Total translations: {len(self.translations)}") # Added log
+        except Exception as e:
+             import traceback
+             error_details = traceback.format_exc()
+             self.log(f"on_card_click: Error handling click for index {index}: {str(e)}\n{error_details}") # Added log
 
     # --- New method to update all card wraplengths ---
     def update_all_card_wraplengths(self, event):
@@ -906,6 +1019,30 @@ class ComicTranslator:
             except tk.TclError:
                 # Handle cases where the widget might be destroyed during update
                 pass
+
+    # --- New method for mouse wheel scrolling ---
+    def _on_mousewheel(self, event):
+        """Handles mouse wheel scrolling for the results canvas."""
+        # Determine the scroll direction and amount based on platform
+        if event.num == 5 or event.delta < 0: # Scroll down (Windows/Mac negative delta, Linux Button 5)
+            scroll_amount = 1
+        elif event.num == 4 or event.delta > 0: # Scroll up (Windows/Mac positive delta, Linux Button 4)
+            scroll_amount = -1
+        else:
+            scroll_amount = 0 # Should not happen
+
+        # Check if the mouse pointer is over the results canvas or its scrollable frame
+        widget_under_pointer = self.root.winfo_containing(event.x_root, event.y_root)
+        is_over_results = False
+        current_widget = widget_under_pointer
+        while current_widget is not None:
+            if current_widget == self.results_canvas:
+                is_over_results = True
+                break
+            current_widget = current_widget.master # Check parent widget
+
+        if is_over_results:
+            self.results_canvas.yview_scroll(scroll_amount, "units")
 
     # --- New method to handle canvas configure ---
     def _on_results_canvas_configure(self, event):
