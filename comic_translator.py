@@ -114,6 +114,14 @@ class ComicTranslator:
         self.api_key_entry.grid(row=2, column=1, padx=5, pady=5)
         self.api_key_entry.insert(0, self.api_settings["api_key"])
         
+        # Add User Prompt Text Area below API settings
+        prompt_frame = ttk.LabelFrame(main_frame, text="User Prompt (Optional Context)")
+        prompt_frame.pack(fill=tk.X, pady=(5, 0)) # Pack below API Frame (or header if API frame starts hidden)
+
+        self.user_prompt_text = scrolledtext.ScrolledText(prompt_frame, height=3, wrap=tk.WORD)
+        self.user_prompt_text.pack(fill=tk.X, padx=5, pady=5)
+        self.user_prompt_text.insert(tk.END, "Translate the text in this comic image to Simplified Chinese. Provide context if helpful.") # Default prompt
+
         # Content section
         content_frame = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
@@ -678,6 +686,11 @@ class ComicTranslator:
         
         # 硬编码提示词
         prompt = "Translate comic to zh_cn"
+        # Get prompt from the new text area
+        prompt = self.user_prompt_text.get("1.0", tk.END).strip()
+        if not prompt:
+            prompt = "Translate comic to zh_cn" # Fallback if empty
+            self.log("User prompt is empty, using default.")
         
         # Start translation in a separate thread
         threading.Thread(target=self.translate_image, args=(prompt,), daemon=True).start()
@@ -1293,12 +1306,17 @@ class ComicTranslator:
             {"org": "", "res": ""}
             """
 
+            # Get the user prompt from the text area
+            user_context_prompt = self.user_prompt_text.get("1.0", tk.END).strip()
+            if not user_context_prompt:
+                 user_context_prompt = "Translate the text in this image." # Default if empty
+
             messages = [
                 {"role": "system", "content": system_message_manual},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Translate the text in this image."},
+                        {"type": "text", "text": user_context_prompt}, # Use user prompt here
                         {
                             "type": "image_url",
                             "image_url": {
