@@ -78,7 +78,11 @@ class ComicTranslator:
 
         # Add Reset Button
         self.reset_btn = ttk.Button(header_frame, text="Reset", command=self.reset_state)
-        self.reset_btn.pack(side=tk.RIGHT)
+        self.reset_btn.pack(side=tk.RIGHT, padx=(0,5)) # Add padding between Reset and Translate
+        
+        # Add button to open image file (Moved to header)
+        self.open_btn = ttk.Button(header_frame, text="Open Image File", command=self.open_image_file)
+        self.open_btn.pack(side=tk.RIGHT)
         
         # Collapsible API settings
         self.api_frame_visible = False
@@ -128,7 +132,7 @@ class ComicTranslator:
 
         # Left side - image area
         image_frame_container = ttk.Frame(content_frame, padding=5)
-        image_frame = ttk.LabelFrame(image_frame_container, text="Paste image (ctrl-v) or open file")
+        image_frame = ttk.LabelFrame(image_frame_container, text="image viewer")
         image_frame.pack(fill=tk.BOTH, expand=True)
 
         content_frame.add(image_frame_container, weight=70)
@@ -158,9 +162,9 @@ class ComicTranslator:
         # Make canvas focusable to receive key events if needed later
         self.image_canvas.config(highlightthickness=0) # Remove focus border if not desired
         
-        # Add button to open image file
-        open_btn = ttk.Button(image_frame, text="Open Image File", command=self.open_image_file)
-        open_btn.pack(side=tk.BOTTOM, pady=5)
+        # Add button to open image file (Removed from here)
+        # open_btn = ttk.Button(image_frame, text="Open Image File", command=self.open_image_file)
+        # open_btn.pack(side=tk.BOTTOM, pady=5)
         
         # Right side - settings and results
         right_frame_container = ttk.Frame(content_frame, padding=5)
@@ -241,6 +245,11 @@ class ComicTranslator:
         self.scrollable_frame.bind_all("<MouseWheel>", self._on_mousewheel) # Windows/Mac
         self.scrollable_frame.bind_all("<Button-4>", self._on_mousewheel)   # Linux scroll up
         self.scrollable_frame.bind_all("<Button-5>", self._on_mousewheel)   # Linux scroll down
+
+        # Bind mouse wheel scrolling for the image canvas
+        self.image_canvas.bind("<MouseWheel>", self._on_image_mousewheel) # Windows/Mac
+        self.image_canvas.bind("<Button-4>", self._on_image_mousewheel)   # Linux scroll up
+        self.image_canvas.bind("<Button-5>", self._on_image_mousewheel)   # Linux scroll down
 
         # Bind clipboard
         self.root.bind("<Control-v>", self.paste_image)
@@ -1152,6 +1161,19 @@ class ComicTranslator:
         self.results_canvas.itemconfigure(self.scrollable_frame_window_id, width=canvas_width)
         # Update wraplengths based on the new width
         self.update_all_card_wraplengths(event) # Pass the event along
+
+    # --- New method for scrolling the image canvas ---
+    def _on_image_mousewheel(self, event):
+        """Handles mouse wheel scrolling for the image canvas."""
+        # Determine the scroll direction and amount based on platform
+        if event.num == 5 or event.delta < 0: # Scroll down (Windows/Mac negative delta, Linux Button 5)
+            scroll_amount = 1
+        elif event.num == 4 or event.delta > 0: # Scroll up (Windows/Mac positive delta, Linux Button 4)
+            scroll_amount = -1
+        else:
+            scroll_amount = 0 # Should not happen
+
+        self.image_canvas.yview_scroll(scroll_amount, "units")
 
     # --- New methods for manual selection and translation ---
     def on_manual_select_start(self, event):
