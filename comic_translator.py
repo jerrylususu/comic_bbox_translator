@@ -33,9 +33,14 @@ class ComicTranslator:
         self.original_image = None  # 存储原始图像
         self.scaled_image = None  # 存储缩放后的图像
         self.scale_factor = (1.0, 1.0)  # 存储缩放比例 (x, y)
-        self.selected_item_id = None  # 存储选中的表格行ID
+        self.selected_item_id = None  # 不再需要表格行ID
         self.show_grid = tk.BooleanVar(value=False)  # 是否显示网格
         self.grid_size = 100  # 网格大小，默认100像素
+        self.timer_start_time = None
+        self.timer_id = None
+        self.base_status = "" # To store status without timer
+        self.result_labels = [] # List to store labels needing wraplength updates
+        self.selected_region_labels = [] # List for selected region labels
         self.setup_ui()
         
     def setup_ui(self):
@@ -109,7 +114,7 @@ class ComicTranslator:
         image_frame = ttk.LabelFrame(image_frame_container, text="Paste image (ctrl-v) or open file")
         image_frame.pack(fill=tk.BOTH, expand=True)
 
-        content_frame.add(image_frame_container, weight=35)
+        content_frame.add(image_frame_container, weight=70)
 
         # 使用Canvas代替Label显示图像和边界框，添加滚动条以支持大图像
         canvas_frame = ttk.Frame(image_frame)
@@ -129,6 +134,9 @@ class ComicTranslator:
         vscrollbar.config(command=self.image_canvas.yview)
         
         self.image_canvas.bind("<Button-1>", self.on_canvas_click)
+        # Make canvas focusable to receive key events if needed later
+        self.image_canvas.config(highlightthickness=0) # Remove focus border if not desired
+        # self.image_canvas.focus_set() # Set focus initially if needed
         
         # Add button to open image file
         open_btn = ttk.Button(image_frame, text="Open Image File", command=self.open_image_file)
@@ -139,7 +147,7 @@ class ComicTranslator:
         right_frame = ttk.Frame(right_frame_container)
         right_frame.pack(fill=tk.BOTH, expand=True)
 
-        content_frame.add(right_frame_container, weight=10)
+        content_frame.add(right_frame_container, weight=30)
         
         # Status
         status_frame = ttk.Frame(right_frame)
@@ -154,12 +162,19 @@ class ComicTranslator:
         selected_frame.pack(fill=tk.X, pady=5)
         
         ttk.Label(selected_frame, text="Original:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        self.selected_original = ttk.Label(selected_frame, text="", wraplength=300)
-        self.selected_original.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        self.selected_original = ttk.Label(selected_frame, text="")
+        self.selected_original.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W+tk.E) # Allow horizontal expansion
         
         ttk.Label(selected_frame, text="Translated:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
-        self.selected_translated = ttk.Label(selected_frame, text="", wraplength=300)
-        self.selected_translated.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
+        self.selected_translated = ttk.Label(selected_frame, text="")
+        self.selected_translated.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W+tk.E) # Allow horizontal expansion
+        
+        # Configure column 1 to expand and take available width
+        selected_frame.grid_columnconfigure(1, weight=1)
+        
+        # Add these labels to the list for wraplength updates
+        self.selected_region_labels.append(self.selected_original)
+        self.selected_region_labels.append(self.selected_translated)
         
         # Log
         log_frame = ttk.LabelFrame(right_frame, text="Log")
@@ -168,36 +183,41 @@ class ComicTranslator:
         self.log_text = scrolledtext.ScrolledText(log_frame, height=5, wrap=tk.WORD)
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Results
+        # Results - Changed from Treeview to Scrollable Card Area
         results_frame = ttk.LabelFrame(right_frame, text="Results")
         results_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        # 使用Treeview替代ScrolledText显示表格结果
-        self.results_tree = ttk.Treeview(results_frame, columns=("bounding_box", "original_text", "translated_text"), show="headings")
-        self.results_tree.heading("bounding_box", text="Bounding Box")
-        self.results_tree.heading("original_text", text="Original Text")
-        self.results_tree.heading("translated_text", text="Translated Text")
-        
-        self.results_tree.column("bounding_box", width=150)
-        self.results_tree.column("original_text", width=150)
-        self.results_tree.column("translated_text", width=150)
-        
-        # 设置行高以显示多行内容
-        style = ttk.Style()
-        # style.configure("Treeview", rowheight=60) # Removed fixed row height
 
-        # 添加Treeview选择事件
-        self.results_tree.bind("<<TreeviewSelect>>", self.on_treeview_select)
-        
-        # 添加滚动条
-        tree_scroll = ttk.Scrollbar(results_frame, orient="vertical", command=self.results_tree.yview)
-        self.results_tree.configure(yscrollcommand=tree_scroll.set)
-        
-        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.results_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+        # Create a Canvas widget to make the frame scrollable
+        self.results_canvas = tk.Canvas(results_frame)
+        results_scrollbar = ttk.Scrollbar(results_frame, orient="vertical", command=self.results_canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.results_canvas) # Frame inside the canvas
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.results_canvas.configure(
+                scrollregion=self.results_canvas.bbox("all")
+            )
+        ) # Update scroll region when frame size changes
+
+        self.results_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw") # Add frame to canvas
+        self.results_canvas.configure(yscrollcommand=results_scrollbar.set)
+
+        self.results_canvas.pack(side="left", fill="both", expand=True)
+        results_scrollbar.pack(side="right", fill="y")
+
         # Bind clipboard
         self.root.bind("<Control-v>", self.paste_image)
+        
+        # Bind wraplength update to the canvas's Configure event (fires less often)
+        self.results_canvas.bind("<Configure>", self.update_all_card_wraplengths)
+        
+        # Redraw boxes (clears previous highlights)
+        self.draw_bounding_boxes()
+        
+        # Clear the list of result labels
+        self.result_labels = []
+        # Clear the list of selected region labels (although they persist)
+        # If we were recreating the UI, we'd clear here. For now, it's fine.
         
     def toggle_api_frame(self):
         if self.api_frame_visible:
@@ -209,9 +229,35 @@ class ComicTranslator:
         self.api_frame_visible = not self.api_frame_visible
         
     def update_status(self, status):
-        self.status = status
-        self.status_label.config(text=status)
-        self.root.update()
+        self.status = status # Store the overall status intent
+
+        # Stop existing timer if any
+        if self.timer_id:
+            self.root.after_cancel(self.timer_id)
+            self.timer_id = None
+            self.timer_start_time = None
+
+        if status in ("Waiting Response", "Streaming Response"):
+            self.base_status = status # Store the part without time
+            self.timer_start_time = time.time()
+            self.update_timer_display() # Start the timer display loop
+        else:
+            self.base_status = status
+            self.status_label.config(text=status) # Just display the final status
+
+        self.root.update() # Ensure label updates immediately
+        
+    def update_timer_display(self):
+        """Updates the status label with elapsed time."""
+        if self.timer_start_time is not None:
+            elapsed = int(time.time() - self.timer_start_time)
+            display_text = f"{self.base_status} ({elapsed}s)"
+            self.status_label.config(text=display_text)
+            # Schedule the next update
+            self.timer_id = self.root.after(1000, self.update_timer_display)
+        else:
+            # Timer was stopped or not started, ensure label shows base status
+            self.status_label.config(text=self.base_status)
         
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")
@@ -389,7 +435,8 @@ class ComicTranslator:
         
         # 清除翻译结果
         self.translations = []
-        self.results_tree.delete(*self.results_tree.get_children())
+        for widget in self.scrollable_frame.winfo_children():
+             widget.destroy()
         self.clear_selection()
         # redraw boxes if any exist (should be cleared but for safety)
         self.draw_bounding_boxes()
@@ -494,6 +541,7 @@ class ComicTranslator:
         img_width, img_height = self.original_image.size
         
         # 遍历所有翻译结果的边界框
+        clicked_idx = -1
         for idx, item in enumerate(self.translations):
             bbox = item["bounding_box"]
             if len(bbox) == 4:
@@ -514,33 +562,18 @@ class ComicTranslator:
                 
                 # 检查点击坐标是否在边界框内
                 if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
-                    # 如果在，则选择对应的表格行并退出循环
-                    self.select_item_by_index(idx)
-                    return
-    
-    def select_item_by_index(self, idx):
-        """通过索引选择表格行"""
-        if 0 <= idx < len(self.translations):
-            # 获取所有行ID
-            items = self.results_tree.get_children()
-            if idx < len(items):
-                # 选择指定的行
-                self.results_tree.selection_set(items[idx])
-                self.results_tree.focus(items[idx])
-                self.results_tree.see(items[idx])
-                # 更新选中的区域显示
-                self.update_selected_display(idx)
-    
-    def on_treeview_select(self, event):
-        """处理表格选择事件"""
-        selection = self.results_tree.selection()
-        if selection:
-            item_id = selection[0]
-            idx = self.results_tree.index(item_id)
-            # 更新选中的区域显示
-            self.update_selected_display(idx)
-            # 高亮显示对应的边界框
-            self.highlight_bounding_box(idx)
+                    # 如果在，则高亮对应的边界框并更新选中区域显示
+                    clicked_idx = idx
+                    break # Found the topmost box
+
+        if clicked_idx != -1:
+            self.highlight_bounding_box(clicked_idx)
+            self.update_selected_display(clicked_idx)
+            # Optional: Scroll the results view to the corresponding card? (More complex)
+        else:
+             # Clicked outside any box, maybe clear highlight?
+             self.clear_selection()
+             self.draw_bounding_boxes() # Redraw normal boxes
     
     def update_selected_display(self, idx):
         """更新选中区域的显示"""
@@ -601,7 +634,8 @@ class ComicTranslator:
         
         # 清除之前的结果
         self.translations = []
-        self.results_tree.delete(*self.results_tree.get_children())
+        for widget in self.scrollable_frame.winfo_children():
+             widget.destroy()
         self.clear_selection()
         
         # Get current API settings from UI
@@ -618,6 +652,7 @@ class ComicTranslator:
     def translate_image(self, prompt):
         try:
             self.log("Starting translation...")
+            # Moved status update to before the blocking call
             self.update_status("Waiting Response")
             
             # Configure OpenAI client
@@ -675,7 +710,6 @@ class ComicTranslator:
             ]
             
             # Make the API call with streaming
-            self.update_status("Streaming Response")
             response_stream = client.chat.completions.create(
                 model=self.api_settings["model_name"],
                 messages=messages,
@@ -684,8 +718,13 @@ class ComicTranslator:
             
             # 收集和处理流式响应
             collected_messages = ""
-            
+            first_chunk_received = False # Flag to switch status
+
             for chunk in response_stream:
+                if not first_chunk_received:
+                     self.update_status("Streaming Response") # Update status when first data arrives
+                     first_chunk_received = True
+
                 if chunk.choices[0].delta.content:
                     chunk_text = chunk.choices[0].delta.content
                     collected_messages += chunk_text
@@ -723,12 +762,14 @@ class ComicTranslator:
                                             "translated_text": translated_text
                                         })
 
-                                        # 更新表格 - 使用换行符保留多行文本
-                                        self.results_tree.insert(
-                                            "", "end", 
-                                            values=(str(bounding_box), original_text, translated_text)
+                                        # Update the UI (add card) instead of Treeview
+                                        self.add_result_card(
+                                            bounding_box=bounding_box,
+                                            original_text=original_text,
+                                            translated_text=translated_text,
+                                            index=len(self.translations) - 1 # Pass the index
                                         )
-                                        
+
                                         # 绘制边界框
                                         self.draw_bounding_boxes()
                             except json.JSONDecodeError:
@@ -776,17 +817,91 @@ class ComicTranslator:
                             "translated_text": translated_text
                         })
 
-                        # 更新表格
-                        self.results_tree.insert(
-                            "", "end", 
-                            values=(str(bounding_box), original_text, translated_text)
+                        # Update the UI (add card) instead of Treeview
+                        self.add_result_card(
+                             bounding_box=bounding_box,
+                             original_text=original_text,
+                             translated_text=translated_text,
+                             index=len(self.translations) - 1 # Pass the index
                         )
-                        
+
                         # 绘制边界框
                         self.draw_bounding_boxes()
             except json.JSONDecodeError:
                 continue
             
+    # --- New method to add result cards ---
+    def add_result_card(self, bounding_box, original_text, translated_text, index):
+        """Adds a new card to the scrollable results frame."""
+        card_frame = ttk.LabelFrame(self.scrollable_frame, padding=(5, 5), text=f"Result {index + 1} / Box: {bounding_box}")
+        card_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Make the frame itself clickable to highlight the box
+        card_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
+
+        # Original Text Label (clickable too)
+        org_label_frame = ttk.Frame(card_frame)
+        org_label_frame.pack(fill=tk.X)
+        ttk.Label(org_label_frame, text="Original:", font=('Arial', 10, 'bold'), width=10).pack(side=tk.LEFT, anchor=tk.NW, padx=(0, 5))
+        # Calculate initial wraplength based on current canvas width
+        initial_wrap = max(100, self.results_canvas.winfo_width() - 100)
+        org_text_label = ttk.Label(org_label_frame, text=original_text, wraplength=initial_wrap)
+        org_text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        org_label_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
+        org_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
+
+        # Translated Text Label (clickable too)
+        res_label_frame = ttk.Frame(card_frame)
+        res_label_frame.pack(fill=tk.X, pady=(5, 0))
+        ttk.Label(res_label_frame, text="Translated:", font=('Arial', 10, 'bold'), width=10).pack(side=tk.LEFT, anchor=tk.NW, padx=(0, 5))
+        res_text_label = ttk.Label(res_label_frame, text=translated_text, wraplength=initial_wrap)
+        res_text_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        res_label_frame.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx))
+        res_text_label.bind("<Button-1>", lambda e, idx=index: self.on_card_click(idx)) # Bind label too
+
+        # Store labels for later wraplength updates
+        self.result_labels.append(org_text_label)
+        self.result_labels.append(res_text_label)
+
+        # Ensure canvas updates its scrollregion after adding card
+        self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
+
+    def on_card_click(self, index):
+        """Handles clicks on a result card."""
+        if 0 <= index < len(self.translations):
+            self.update_selected_display(index)
+            self.highlight_bounding_box(index)
+
+    # --- New method to update all card wraplengths ---
+    def update_all_card_wraplengths(self, event):
+        """Updates the wraplength of all result labels based on canvas width."""
+        # Calculate available width, subtracting padding/margins
+        # Use right_frame_container width for selected region labels
+        selected_region_container_width = self.selected_original.master.winfo_width()
+        # Estimate label width + padding for selected region
+        selected_wrap_width = max(50, selected_region_container_width - 70)
+
+        # Use event.width which is the canvas's current width
+        wrap_width = max(100, event.width - 100) # Ensure a minimum width
+        for label in self.result_labels:
+            try:
+                # Check if widget exists before configuring
+                if label.winfo_exists():
+                    label.configure(wraplength=wrap_width)
+            except tk.TclError:
+                # Handle cases where the widget might be destroyed during update
+                pass
+
+        # Update selected region labels
+        for label in self.selected_region_labels:
+            try:
+                # Check if widget exists before configuring
+                if label.winfo_exists():
+                    label.configure(wraplength=selected_wrap_width)
+            except tk.TclError:
+                # Handle cases where the widget might be destroyed during update
+                pass
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = ComicTranslator(root)
