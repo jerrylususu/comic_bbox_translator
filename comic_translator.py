@@ -178,8 +178,8 @@ class ComicTranslator:
         
         # 设置行高以显示多行内容
         style = ttk.Style()
-        style.configure("Treeview", rowheight=60)
-        
+        # style.configure("Treeview", rowheight=60) # Removed fixed row height
+
         # 添加Treeview选择事件
         self.results_tree.bind("<<TreeviewSelect>>", self.on_treeview_select)
         
@@ -367,19 +367,40 @@ class ComicTranslator:
                 )
     
     def on_canvas_click(self, event):
-        """处理画布点击事件"""
-        # 查找点击位置的边界框
-        clicked_items = self.image_canvas.find_withtag(tk.CURRENT)
-        for item in clicked_items:
-            tags = self.image_canvas.gettags(item)
-            for tag in tags:
-                if tag.startswith("box_"):
-                    # 从标签中提取索引
-                    idx = int(tag.split("_")[1])
-                    if 0 <= idx < len(self.translations):
-                        # 选择对应的表格行
-                        self.select_item_by_index(idx)
-                        return
+        """处理画布点击事件，改为检查点击坐标是否在某个边界框内"""
+        # 获取点击的画布坐标
+        canvas_x = self.image_canvas.canvasx(event.x)
+        canvas_y = self.image_canvas.canvasy(event.y)
+        
+        # 获取图像尺寸
+        if not self.original_image:
+            return
+        img_width, img_height = self.original_image.size
+        
+        # 遍历所有翻译结果的边界框
+        for idx, item in enumerate(self.translations):
+            bbox = item["bounding_box"]
+            if len(bbox) == 4:
+                # 解析边界框坐标 [ymin, xmin, ymax, xmax]
+                ymin, xmin, ymax, xmax = bbox
+                
+                # 从归一化的 1000 范围转换到实际像素坐标
+                x1_orig = int(xmin * img_width / 1000)
+                y1_orig = int(ymin * img_height / 1000)
+                x2_orig = int(xmax * img_width / 1000)
+                y2_orig = int(ymax * img_height / 1000)
+                
+                # 应用缩放比例 (虽然当前为1.0，但保持逻辑)
+                x1 = int(x1_orig * self.scale_factor[0])
+                y1 = int(y1_orig * self.scale_factor[1])
+                x2 = int(x2_orig * self.scale_factor[0])
+                y2 = int(y2_orig * self.scale_factor[1])
+                
+                # 检查点击坐标是否在边界框内
+                if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
+                    # 如果在，则选择对应的表格行并退出循环
+                    self.select_item_by_index(idx)
+                    return
     
     def select_item_by_index(self, idx):
         """通过索引选择表格行"""
@@ -511,14 +532,14 @@ class ComicTranslator:
             
             Format your response as JSONL (JSON Lines) where each text bubble is a separate JSON object on a new line:
             (coordinates are normalized to 1000 and in the format [ymin, xmin, ymax, xmax] where the top left corner is the zero point and has position 0,0)
-            {"bounding_box": [ymin, xmin, ymax, xmax], "original_text": "Original text", "translated_text": "Translated text"}
+            {"box_2d": [ymin, xmin, ymax, xmax], "org": "Original text", "res": "Translated text"}
             ...
             
             This format allows each text bubble to be processed as soon as it's identified.
             
-            Important: Always normalize the bounding box coordinates to a range of 0 to 1000, where 0,0 is the top-left corner 
-            and 1000,1000 is the bottom-right corner of the image. The bounding box coordinates MUST be in the order: 
-            [ymin, xmin, ymax, xmax].
+            Important: Always normalize the bounding box coordinates to a range of 0 to 1000, where 0,0 is the top-left corner
+            and 1000,1000 is the bottom-right corner of the image. The bounding box coordinates MUST be in the order:
+            [ymin, xmin, ymax, xmax]. Make sure the keys are exactly "box_2d", "org", and "res".
             """
             
             messages = [
@@ -566,25 +587,26 @@ class ComicTranslator:
                             try:
                                 # 尝试解析单行JSON
                                 item = json.loads(line)
-                                if "bounding_box" in item and "original_text" in item and "translated_text" in item:
-                                    bounding_box = item.get("bounding_box", [])
-                                    original_text = item.get("original_text", "")
-                                    translated_text = item.get("translated_text", "")
-                                    
-                                    # 检查这个结果是否已经添加过
+                                # Use new keys: box_2d, org, res
+                                if "box_2d" in item and "org" in item and "res" in item:
+                                    bounding_box = item.get("box_2d", [])
+                                    original_text = item.get("org", "")
+                                    translated_text = item.get("res", "")
+
+                                    # 检查这个结果是否已经添加过 (using internal keys for consistency)
                                     if not any(
-                                        t["bounding_box"] == bounding_box and 
-                                        t["original_text"] == original_text and 
-                                        t["translated_text"] == translated_text 
+                                        t["bounding_box"] == bounding_box and
+                                        t["original_text"] == original_text and
+                                        t["translated_text"] == translated_text
                                         for t in self.translations
                                     ):
-                                        # 添加到翻译结果列表
+                                        # 添加到翻译结果列表 (using internal keys)
                                         self.translations.append({
                                             "bounding_box": bounding_box,
                                             "original_text": original_text,
                                             "translated_text": translated_text
                                         })
-                                        
+
                                         # 更新表格 - 使用换行符保留多行文本
                                         self.results_tree.insert(
                                             "", "end", 
@@ -618,26 +640,26 @@ class ComicTranslator:
             try:
                 item = json.loads(obj_str)
                 
-                # 确保是我们期望的格式
-                if "bounding_box" in item and "original_text" in item and "translated_text" in item:
-                    bounding_box = item.get("bounding_box", [])
-                    original_text = item.get("original_text", "")
-                    translated_text = item.get("translated_text", "")
-                    
-                    # 检查这个结果是否已经添加过
+                # 确保是我们期望的格式 (using new keys)
+                if "box_2d" in item and "org" in item and "res" in item:
+                    bounding_box = item.get("box_2d", [])
+                    original_text = item.get("org", "")
+                    translated_text = item.get("res", "")
+
+                    # 检查这个结果是否已经添加过 (using internal keys)
                     if not any(
-                        t["bounding_box"] == bounding_box and 
-                        t["original_text"] == original_text and 
-                        t["translated_text"] == translated_text 
+                        t["bounding_box"] == bounding_box and
+                        t["original_text"] == original_text and
+                        t["translated_text"] == translated_text
                         for t in self.translations
                     ):
-                        # 添加到翻译结果列表
+                        # 添加到翻译结果列表 (using internal keys)
                         self.translations.append({
                             "bounding_box": bounding_box,
                             "original_text": original_text,
                             "translated_text": translated_text
                         })
-                        
+
                         # 更新表格
                         self.results_tree.insert(
                             "", "end", 
