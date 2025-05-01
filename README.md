@@ -12,6 +12,9 @@
 
 一个图形用户界面（GUI）工具，利用大型语言模型（如 GPT-4 Vision）来翻译漫画图像中的文本。它能识别文本区域，提取原文，将其翻译成简体中文，并将结果与带有边界框的图像并排显示。
 
+![demo.gif](docs/comic_bbox_translator.gif)
+(Credit: https://x.com/kemono_j/status/1917578723542589572/photo/2)
+
 ## 提示
 推荐使用 Gemini 2.0 Flash 模型，价格便宜且效果尚可。
 
