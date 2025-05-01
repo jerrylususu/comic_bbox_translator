@@ -47,6 +47,10 @@ class ComicTranslator:
         self.selection_line_ids = [] # Store line IDs for the selection box
         self.selection_start_coords = None
         self.selection_end_coords = None
+
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
         
         self.setup_ui()
         
@@ -838,6 +842,38 @@ class ComicTranslator:
 
                         self.root.update()
                         time.sleep(0.01)  # Small delay for UI responsiveness
+                    else:
+                        # Check if this chunk might contain usage information (often delta/content is null then)
+                        if hasattr(chunk, 'usage') and chunk.usage is not None:
+                             self.log(f"translate_image: Received usage info: {chunk.usage}")
+                             # Store token counts if available
+                             if hasattr(chunk.usage, 'prompt_tokens'):
+                                 self.prompt_tokens = chunk.usage.prompt_tokens
+                             if hasattr(chunk.usage, 'completion_tokens'):
+                                 self.completion_tokens = chunk.usage.completion_tokens
+                             if hasattr(chunk.usage, 'total_tokens'):
+                                 self.total_tokens = chunk.usage.total_tokens
+                        #else:
+                        #    # Log if choices exist but delta/content is missing/null for debugging?
+                        #    self.log(f"translate_image: Chunk choices[0] exists but delta or content is missing/null. Chunk: {chunk}")
+                        # --- End of added block ---
+
+                # --- Add this else block for when chunk.choices is empty ---
+                else:
+                     # Check if this chunk without choices contains usage info (as seen in example)
+                     if hasattr(chunk, 'usage') and chunk.usage is not None:
+                         self.log(f"translate_image: Received usage info in chunk without choices: {chunk.usage}")
+                         # Store token counts if available
+                         if hasattr(chunk.usage, 'prompt_tokens'):
+                             self.prompt_tokens = chunk.usage.prompt_tokens
+                         if hasattr(chunk.usage, 'completion_tokens'):
+                             self.completion_tokens = chunk.usage.completion_tokens
+                         if hasattr(chunk.usage, 'total_tokens'):
+                             self.total_tokens = chunk.usage.total_tokens
+                     else:
+                        # Log the chunk if it doesn't contain choices or usage
+                        self.log(f"translate_image: Received chunk without choices or usage info: {chunk}")
+                # --- End of added block ---
 
             self.log(f"translate_image: Finished streaming loop. Final collected_messages: '{collected_messages}'")
             # Final processing of any remaining content in collected_messages after the loop
@@ -846,7 +882,7 @@ class ComicTranslator:
             self.log("translate_image: Returned from process_jsonl_response")
 
             # Processing complete
-            self.update_status("Done")
+            self.update_status(self.get_done_status_message()) # Use helper function
             self.log(f"translate_image: Translation process finished. Total translations: {len(self.translations)}")
 
         except Exception as e:
@@ -949,6 +985,10 @@ class ComicTranslator:
         self.selection_start_coords = None
         self.selection_end_coords = None
 
+        # Reset token counts
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
 
         # Reset status label and stop timer
         self.update_status("Not Started") # This also handles stopping the timer
@@ -959,6 +999,13 @@ class ComicTranslator:
 
         self.log("State reset complete.")
         self.root.update() # Ensure UI reflects changes immediately
+
+    def get_done_status_message(self):
+        """Formats the 'Done' status message including token counts if available."""
+        if self.prompt_tokens > 0 or self.completion_tokens > 0:
+            return f"Done (In={self.prompt_tokens}, Out={self.completion_tokens}, Total={self.total_tokens})"
+        else:
+            return "Done"
 
     # --- New method to add result cards ---
     def add_result_card(self, bounding_box, original_text, translated_text, index):
@@ -1275,6 +1322,18 @@ class ComicTranslator:
                 response_text = response.choices[0].message.content
                 self.log(f"Manual translation response received: {response_text}")
 
+                # Extract usage data (added)
+                if hasattr(response, 'usage') and response.usage:
+                    self.prompt_tokens = response.usage.prompt_tokens
+                    self.completion_tokens = response.usage.completion_tokens
+                    self.total_tokens = response.usage.total_tokens
+                    self.log(f"Manual translation usage: In={self.prompt_tokens}, Out={self.completion_tokens}, Total={self.total_tokens}")
+                else:
+                    # Reset tokens if usage info is missing for this call
+                    self.prompt_tokens = 0
+                    self.completion_tokens = 0
+                    self.total_tokens = 0
+
                 # --- Robust JSON Parsing --- 
                 cleaned_text = response_text.strip()
                 # Remove potential markdown code block fences
@@ -1331,7 +1390,9 @@ class ComicTranslator:
                             index=new_index
                         )
                         self.draw_bounding_boxes() # Redraw all boxes including the new one
-                        self.update_status("Done (Manual)")
+                        # Update status using helper function (Manual)
+                        done_status = self.get_done_status_message().replace("Done", "Done (Manual)")
+                        self.update_status(done_status)
                         self.log(f"Manual translation added for box: {bounding_box}")
 
                     else:
