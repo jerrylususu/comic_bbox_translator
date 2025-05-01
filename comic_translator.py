@@ -6,7 +6,7 @@ import base64
 import threading
 import time
 import os
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageGrab
 from dotenv import load_dotenv
 import re
 from openai import OpenAI
@@ -236,50 +236,153 @@ class ComicTranslator:
                 self.log(f"Error loading image: {str(e)}")
         
     def paste_image(self, event=None):
+        image_pasted = False
+        # Method 1: Try Tkinter first
         try:
-            # 尝试通过tk.TclError来捕获并处理没有图像的情况
+            self.log("Attempting to get image from clipboard using Tkinter (type='image')...")
+            image_data_tk = self.root.clipboard_get(type="image")
+            if image_data_tk:
+                self.image_data = image_data_tk
+                self.display_image()
+                self.log("Image pasted successfully using Tkinter.")
+                image_pasted = True
+            else:
+                self.log("Tkinter clipboard_get(type='image') returned empty data.")
+
+        except tk.TclError as e:
+            self.log(f"Tkinter method failed: {e}")
+            # Method 2: Try PIL ImageGrab if Tkinter failed
+            self.log("Attempting to get image from clipboard using PIL.ImageGrab...")
             try:
-                image = self.root.clipboard_get(type="image")
-                if image:
-                    self.image_data = image
-                    self.display_image()
-                    self.log("Image pasted successfully")
-            except tk.TclError:
-                # 如果没有图像在剪贴板中，尝试其他方法
-                self.log("No image found in clipboard. Try using 'Open Image File' button.")
-                
+                pil_image = ImageGrab.grabclipboard()
+                if isinstance(pil_image, Image.Image):
+                    self.log(f"PIL.ImageGrab captured image size: {pil_image.size}") # Log captured size
+                    # Convert PIL Image to bytes
+                    buffer = io.BytesIO()
+                    # Determine format (PNG is usually a good default for clipboard)
+                    format_to_save = 'PNG' 
+                    # If the image has transparency, save as PNG
+                    if pil_image.mode == 'RGBA' or 'A' in pil_image.info.get('transparency', ()): 
+                        format_to_save = 'PNG'
+                    else: # Otherwise, try JPEG, fallback to PNG
+                        try:
+                            pil_image.save(buffer, format='JPEG')
+                            format_to_save = 'JPEG' # Successfully saved as JPEG
+                        except OSError:
+                            self.log("JPEG save failed (possibly RGBA), falling back to PNG.")
+                            buffer = io.BytesIO() # Reset buffer
+                            pil_image.save(buffer, format='PNG')
+                            format_to_save = 'PNG'
+                        except Exception as save_e:
+                             self.log(f"Error saving PIL image as JPEG: {save_e}. Falling back to PNG.")
+                             buffer = io.BytesIO() # Reset buffer
+                             pil_image.save(buffer, format='PNG')
+                             format_to_save = 'PNG'
+                            
+                    self.image_data = buffer.getvalue()
+                    self.original_image = pil_image # Store the original PIL image directly
+                    self.log(f"Set self.original_image from PIL, size: {self.original_image.size}") # Log stored size
+                    self.display_image() # Call display_image directly as we have the PIL image
+                    self.log(f"Image pasted successfully using PIL.ImageGrab (saved as {format_to_save}).")
+                    image_pasted = True
+                elif pil_image is None:
+                    self.log("PIL.ImageGrab.grabclipboard() returned None. No image found.")
+                else:
+                    # grabclipboard can sometimes return a list of filenames (strings)
+                    self.log(f"PIL.ImageGrab.grabclipboard() returned unexpected data type: {type(pil_image)}")
+
+            except ImportError:
+                 self.log("PIL (Pillow) is required for this paste method but seems missing or not configured correctly.")
+            except NotImplementedError:
+                self.log("PIL.ImageGrab is not implemented for this platform/environment.")
+            except Exception as pil_e:
+                self.log(f"Error using PIL.ImageGrab: {pil_e}")
+
         except Exception as e:
-            self.log(f"Error pasting image: {str(e)}")
-    
+            # Catch other unexpected errors from the Tkinter block
+            self.log(f"Unexpected error during Tkinter paste attempt: {str(e)}")
+
+        # Fallback message if both methods failed
+        if not image_pasted:
+            self.log("Failed to paste image using both Tkinter and PIL methods.")
+            # Try checking for text again as a final diagnostic
+            try:
+                clipboard_text = self.root.clipboard_get()
+                if clipboard_text:
+                     self.log(f"Clipboard contains text: '{clipboard_text[:100]}...'")
+                else:
+                    self.log("Clipboard appears to be empty or contains non-text data.")
+            except Exception:
+                self.log("Could not check for text in clipboard after image paste failures.")
+            self.log("Suggestion: Try using 'Open Image File' button.")
+
     def display_image(self):
         """显示图像并清除之前的边界框"""
-        if not self.image_data:
+        # Modified: Now accepts self.image_data (bytes) or self.original_image (PIL Image)
+        if not self.image_data and not self.original_image:
             return
             
         # 清除画布
         self.image_canvas.delete("all")
         
-        # 保存原始图像
-        self.original_image = Image.open(io.BytesIO(self.image_data))
-        
+        # Load image either from bytes or use existing PIL image
+        if self.original_image:
+            # Use the PIL image directly if it exists (likely from ImageGrab)
+            img_to_display = self.original_image.copy()
+            self.log(f"display_image: Using existing self.original_image (PIL), size: {img_to_display.size}")
+            # Ensure self.image_data has the bytes corresponding to self.original_image
+            # This might be redundant if paste_image already saved it, but ensures consistency
+            if not self.image_data:
+                buffer = io.BytesIO()
+                format_to_save = 'PNG' if img_to_display.mode == 'RGBA' or 'A' in img_to_display.info.get('transparency', ()) else 'JPEG'
+                try:
+                    img_to_display.save(buffer, format=format_to_save)
+                    self.image_data = buffer.getvalue()
+                except Exception as e:
+                    self.log(f"Error converting PIL image back to bytes: {e}")
+                    # Fallback: try PNG if JPEG failed
+                    if format_to_save == 'JPEG':
+                        try:
+                            buffer = io.BytesIO()
+                            img_to_display.save(buffer, format='PNG')
+                            self.image_data = buffer.getvalue()
+                        except Exception as png_e:
+                            self.log(f"Error converting PIL image to PNG bytes: {png_e}")
+                            return # Cannot proceed without image data
+                    else:
+                         return # Cannot proceed
+        elif self.image_data:
+            # Load from bytes if self.original_image is not set (likely from Tkinter paste or file open)
+            try:
+                self.original_image = Image.open(io.BytesIO(self.image_data))
+                img_to_display = self.original_image.copy()
+                self.log(f"display_image: Loaded self.original_image from self.image_data, size: {img_to_display.size}")
+            except Exception as e:
+                self.log(f"Error opening image data: {e}")
+                self.image_data = None # Clear bad data
+                self.original_image = None
+                return
+        else:
+             return # Should not happen based on initial check
+
         # 使用原始大小图像，不缩放
-        img_width, img_height = self.original_image.size
+        img_width, img_height = img_to_display.size
         
         # 设置画布滚动区域以适应原始大小的图像
         self.image_canvas.config(scrollregion=(0, 0, img_width, img_height))
         
-        # 创建要显示的图像
-        display_image = self.original_image.copy()
-        
         # 如果需要显示网格，则添加网格线
         if self.show_grid.get():
-            display_image = self.add_grid_to_image(display_image)
+            img_to_display = self.add_grid_to_image(img_to_display)
         
         # 创建 PhotoImage 对象
-        self.photo_image = ImageTk.PhotoImage(display_image)
+        # Keep a reference to the PhotoImage object to prevent garbage collection
+        self.photo_image = ImageTk.PhotoImage(img_to_display) 
+        self.log(f"display_image: Created PhotoImage size: ({self.photo_image.width()}, {self.photo_image.height()})") # Log PhotoImage size
         
         # 在画布上显示图像
         self.image_canvas.create_image(0, 0, anchor=tk.NW, image=self.photo_image)
+        self.log(f"display_image: Canvas scrollregion set to: {self.image_canvas.cget('scrollregion')}") # Log scroll region
         
         # 设置缩放比例为1:1（无缩放）
         self.scale_factor = (1.0, 1.0)
@@ -288,6 +391,8 @@ class ComicTranslator:
         self.translations = []
         self.results_tree.delete(*self.results_tree.get_children())
         self.clear_selection()
+        # redraw boxes if any exist (should be cleared but for safety)
+        self.draw_bounding_boxes()
     
     def add_grid_to_image(self, image):
         """在图像上添加网格线"""
@@ -343,7 +448,12 @@ class ComicTranslator:
         self.image_canvas.delete("box")
         
         # 获取图像尺寸
+        if not self.original_image:
+             self.log("draw_bounding_boxes: No self.original_image found when trying to draw boxes.")
+             return
+             
         img_width, img_height = self.original_image.size
+        self.log(f"draw_bounding_boxes: Using self.original_image size for coordinate calculation: ({img_width}, {img_height})") # Log size used for calc
         
         # 遍历所有翻译结果，绘制边界框
         for i, item in enumerate(self.translations):
