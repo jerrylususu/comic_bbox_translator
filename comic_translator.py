@@ -41,6 +41,13 @@ class ComicTranslator:
         self.base_status = "" # To store status without timer
         self.result_labels = [] # List to store labels needing wraplength updates
         self.selected_region_labels = [] # List for selected region labels
+        
+        # Manual selection state
+        self.manual_select_enabled = tk.BooleanVar(value=False) # Toggle for manual selection
+        self.selection_line_ids = [] # Store line IDs for the selection box
+        self.selection_start_coords = None
+        self.selection_end_coords = None
+        
         self.setup_ui()
         
     def setup_ui(self):
@@ -54,21 +61,15 @@ class ComicTranslator:
         
         ttk.Label(header_frame, text="Comic Translator", font=("Arial", 14, "bold")).pack(side=tk.LEFT)
         
-        # Mode selection
-        mode_frame = ttk.Frame(header_frame)
-        mode_frame.pack(side=tk.LEFT, padx=20)
-        
-        self.mode_var = tk.StringVar(value="Auto")
-        ttk.Radiobutton(mode_frame, text="Auto", variable=self.mode_var, value="Auto").pack(side=tk.LEFT)
-        ttk.Radiobutton(mode_frame, text="Manual", variable=self.mode_var, value="Manual").pack(side=tk.LEFT)
-        
         # 网格选项
         grid_frame = ttk.Frame(header_frame)
         grid_frame.pack(side=tk.LEFT, padx=20)
         ttk.Checkbutton(grid_frame, text="显示网格", variable=self.show_grid, command=self.refresh_display).pack(side=tk.LEFT)
+        # Add Manual Select Toggle Checkbutton
+        ttk.Checkbutton(grid_frame, text="启用手动选择", variable=self.manual_select_enabled).pack(side=tk.LEFT, padx=5)
         
         # 将翻译按钮添加到标题栏右侧
-        self.translate_btn = ttk.Button(header_frame, text="Translate", command=self.start_translation)
+        self.translate_btn = ttk.Button(header_frame, text="Translate Full Image", command=self.start_translation) # Rename button
         self.translate_btn.pack(side=tk.RIGHT)
         
         # Collapsible API settings
@@ -133,10 +134,13 @@ class ComicTranslator:
         hscrollbar.config(command=self.image_canvas.xview)
         vscrollbar.config(command=self.image_canvas.yview)
         
-        self.image_canvas.bind("<Button-1>", self.on_canvas_click)
+        # Add new bindings for manual selection drag
+        self.image_canvas.bind("<ButtonPress-1>", self.on_manual_select_start)
+        self.image_canvas.bind("<B1-Motion>", self.on_manual_select_drag)
+        self.image_canvas.bind("<ButtonRelease-1>", self.on_manual_select_end)
+        
         # Make canvas focusable to receive key events if needed later
         self.image_canvas.config(highlightthickness=0) # Remove focus border if not desired
-        # self.image_canvas.focus_set() # Set focus initially if needed
         
         # Add button to open image file
         open_btn = ttk.Button(image_frame, text="Open Image File", command=self.open_image_file)
@@ -199,7 +203,8 @@ class ComicTranslator:
             )
         ) # Update scroll region when frame size changes
 
-        self.results_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw") # Add frame to canvas
+        # Store the window ID when adding the frame to the canvas
+        self.scrollable_frame_window_id = self.results_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw") # Add frame to canvas
         self.results_canvas.configure(yscrollcommand=results_scrollbar.set)
 
         self.results_canvas.pack(side="left", fill="both", expand=True)
@@ -208,8 +213,8 @@ class ComicTranslator:
         # Bind clipboard
         self.root.bind("<Control-v>", self.paste_image)
         
-        # Bind wraplength update to the canvas's Configure event (fires less often)
-        self.results_canvas.bind("<Configure>", self.update_all_card_wraplengths)
+        # Bind configure event to resize the frame within the canvas and update wraplengths
+        self.results_canvas.bind("<Configure>", self._on_results_canvas_configure)
         
         # Redraw boxes (clears previous highlights)
         self.draw_bounding_boxes()
@@ -901,6 +906,322 @@ class ComicTranslator:
             except tk.TclError:
                 # Handle cases where the widget might be destroyed during update
                 pass
+
+    # --- New method to handle canvas configure ---
+    def _on_results_canvas_configure(self, event):
+        """Handles canvas resize to adjust the scrollable frame width and label wraplength."""
+        canvas_width = event.width
+        # Update the width of the frame window item inside the canvas
+        self.results_canvas.itemconfigure(self.scrollable_frame_window_id, width=canvas_width)
+        # Update wraplengths based on the new width
+        self.update_all_card_wraplengths(event) # Pass the event along
+
+    # --- New methods for manual selection and translation ---
+    def on_manual_select_start(self, event):
+        """Handles the start of a drag selection on the canvas."""
+        # Get canvas coordinates (which are image coordinates due to 1:1 scaling)
+        canvas_x = self.image_canvas.canvasx(event.x)
+        canvas_y = self.image_canvas.canvasy(event.y)
+        self.selection_start_coords = (canvas_x, canvas_y)
+        self.selection_end_coords = None # Reset end coords
+
+        # Delete previous selection lines if they exist
+        for line_id in self.selection_line_ids:
+            self.image_canvas.delete(line_id)
+        self.selection_line_ids = []
+
+    def on_manual_select_drag(self, event):
+        """Handles the dragging motion during selection."""
+        # Only draw selection rectangle if manual mode is enabled
+        if not self.manual_select_enabled.get():
+            return
+        
+        if self.selection_start_coords:
+            # Get current end coordinates
+            canvas_x = self.image_canvas.canvasx(event.x)
+            canvas_y = self.image_canvas.canvasy(event.y)
+            self.selection_end_coords = (canvas_x, canvas_y)
+
+            # Delete the previous lines
+            for line_id in self.selection_line_ids:
+                self.image_canvas.delete(line_id)
+            self.selection_line_ids = []
+
+            # Draw the new rectangle border with lines
+            x1, y1 = self.selection_start_coords
+            x2, y2 = self.selection_end_coords
+            line_color = "green"
+            line_width = 2
+            self.selection_line_ids.append(self.image_canvas.create_line(x1, y1, x2, y1, fill=line_color, width=line_width, tags=("selection_rect",)))
+            self.selection_line_ids.append(self.image_canvas.create_line(x2, y1, x2, y2, fill=line_color, width=line_width, tags=("selection_rect",)))
+            self.selection_line_ids.append(self.image_canvas.create_line(x2, y2, x1, y2, fill=line_color, width=line_width, tags=("selection_rect",)))
+            self.selection_line_ids.append(self.image_canvas.create_line(x1, y2, x1, y1, fill=line_color, width=line_width, tags=("selection_rect",)))
+
+    def on_manual_select_end(self, event):
+        """Handles the end of the drag selection and triggers manual translation if enabled."""
+        trigger_manual_translate = False
+        is_click = True # Assume it's a click initially
+        final_coords = None
+
+        if self.selection_start_coords and self.selection_end_coords:
+            x1, y1 = self.selection_start_coords
+            x2, y2 = self.selection_end_coords
+
+            # Ensure coordinates are ordered
+            final_x1 = min(x1, x2)
+            final_y1 = min(y1, y2)
+            final_x2 = max(x1, x2)
+            final_y2 = max(y1, y2)
+            final_coords = (final_x1, final_y1, final_x2, final_y2)
+
+            # Check if it was a significant drag and if manual mode is enabled
+            is_drag = abs(final_x1 - final_x2) > 5 and abs(final_y1 - final_y2) > 5
+            if is_drag:
+                 is_click = False # It was a drag
+                 if self.manual_select_enabled.get():
+                      trigger_manual_translate = True
+                      self.log(f"Manual selection completed: ({final_x1}, {final_y1}) to ({final_x2}, {final_y2})")
+                 else:
+                     self.log("Drag detected but manual selection is disabled. Treating as click.")
+                     # Fall through to click handling
+            # else: it was a small drag, treat as click
+
+        # Perform action based on flags
+        if trigger_manual_translate and final_coords:
+            # Trigger manual translation process
+            self.translate_manual_selection((final_coords[0], final_coords[1]), (final_coords[2], final_coords[3]))
+        elif is_click:
+            # Handle as a click (highlight existing box or do nothing)
+            canvas_x = self.image_canvas.canvasx(event.x)
+            canvas_y = self.image_canvas.canvasy(event.y)
+            self.handle_canvas_click(canvas_x, canvas_y)
+        # Else (it was a drag but manual mode was disabled), do nothing extra here, click handler was called implicitly if needed.
+
+        # Delete the visual selection rectangle lines if they were drawn
+        for line_id in self.selection_line_ids:
+             self.image_canvas.delete(line_id)
+        self.selection_line_ids = []
+
+        # Reset selection state regardless
+        self.selection_start_coords = None
+        self.selection_end_coords = None
+
+    def translate_manual_selection(self, start_coords, end_coords):
+        """Crops the selected region and sends it for translation."""
+        if not self.original_image:
+            self.log("Error: No original image loaded for manual selection.")
+            return
+
+        try:
+            x1, y1 = start_coords
+            x2, y2 = end_coords
+
+            # Crop the image using PIL
+            # Coordinates are already image coordinates
+            cropped_image = self.original_image.crop((int(x1), int(y1), int(x2), int(y2)))
+            self.log(f"Cropped image size: {cropped_image.size}")
+
+            # Convert cropped image to bytes
+            buffer = io.BytesIO()
+            format_to_save = 'PNG' # Use PNG for potentially small, sharp text regions
+            cropped_image.save(buffer, format=format_to_save)
+            cropped_image_data = buffer.getvalue()
+
+            if not cropped_image_data:
+                self.log("Error: Failed to convert cropped image to bytes.")
+                return
+
+            # Update status and log
+            self.update_status("Sent (Manual)")
+            self.log("Sending cropped region for translation...")
+
+            # Get current API settings
+            self.api_settings["endpoint"] = self.endpoint_entry.get()
+            self.api_settings["model_name"] = self.model_entry.get()
+            self.api_settings["api_key"] = self.api_key_entry.get()
+
+            # Start translation in a separate thread
+            threading.Thread(
+                target=self.call_manual_translate_api,
+                args=(cropped_image_data, (x1, y1, x2, y2)), # Pass image bytes and original pixel coords
+                daemon=True
+            ).start()
+
+        except Exception as e:
+            self.update_status("Error (Manual Crop)")
+            self.log(f"Error during manual selection processing: {str(e)}")
+
+    def call_manual_translate_api(self, cropped_image_data, selection_coords_img):
+        """Makes the API call for the manually selected region."""
+        try:
+            self.update_status("Waiting Response") # Timer starts here
+
+            client = OpenAI(api_key=self.api_settings["api_key"], base_url=self.api_settings["endpoint"])
+            base64_image = base64.b64encode(cropped_image_data).decode('utf-8')
+
+            # Simplified system message for direct translation
+            system_message_manual = """
+            You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
+            Format your response as a single JSON object:
+            {"org": "Original text found", "res": "Translated Chinese text"}
+
+            If no text is found, return:
+            {"org": "", "res": ""}
+            """
+
+            messages = [
+                {"role": "system", "content": system_message_manual},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Translate the text in this image."},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}" # Assume PNG for cropped
+                            }
+                        }
+                    ]
+                }
+            ]
+
+            response = client.chat.completions.create(
+                model=self.api_settings["model_name"],
+                messages=messages,
+                # No streaming needed for short expected response
+            )
+
+            self.update_status("Processing Response") # Timer stops implicitly
+
+            # Extract response content
+            if response.choices and response.choices[0].message.content:
+                response_text = response.choices[0].message.content
+                self.log(f"Manual translation response received: {response_text}")
+
+                # --- Robust JSON Parsing --- 
+                cleaned_text = response_text.strip()
+                # Remove potential markdown code block fences
+                if cleaned_text.startswith("```json"):
+                    cleaned_text = cleaned_text[len("```json"):].strip()
+                if cleaned_text.startswith("```"):
+                     cleaned_text = cleaned_text[len("```"):].strip()
+                if cleaned_text.endswith("```"):
+                    cleaned_text = cleaned_text[:-len("```")].strip()
+                
+                # Attempt to remove trailing commas before closing braces/brackets
+                # This is a simplified approach for the expected structure
+                cleaned_text = re.sub(r",\s*(\}|\])", r"\1", cleaned_text)
+                
+                self.log(f"Cleaned response for JSON parsing: {cleaned_text}")
+
+                # Parse the cleaned JSON response
+                try:
+                    result_json = json.loads(cleaned_text)
+                    original_text = result_json.get("org", "")
+                    translated_text = result_json.get("res", "")
+
+                    if not original_text and not translated_text:
+                         self.log("LLM reported no text found in the selection.")
+                         self.update_status("Done (Manual - No Text)")
+                         return # Don't add an empty result
+
+                    # Calculate normalized bounding box from selection_coords_img
+                    if self.original_image:
+                        img_width, img_height = self.original_image.size
+                        x1, y1, x2, y2 = selection_coords_img
+
+                        # Normalize coordinates [ymin, xmin, ymax, xmax]
+                        norm_ymin = int(y1 * 1000 / img_height)
+                        norm_xmin = int(x1 * 1000 / img_width)
+                        norm_ymax = int(y2 * 1000 / img_height)
+                        norm_xmax = int(x2 * 1000 / img_width)
+                        bounding_box = [norm_ymin, norm_xmin, norm_ymax, norm_xmax]
+
+                        # Add to translations list
+                        new_translation = {
+                            "bounding_box": bounding_box,
+                            "original_text": original_text,
+                            "translated_text": translated_text
+                        }
+                        self.translations.append(new_translation)
+                        new_index = len(self.translations) - 1
+
+                        # Update UI
+                        self.add_result_card(
+                            bounding_box=bounding_box,
+                            original_text=original_text,
+                            translated_text=translated_text,
+                            index=new_index
+                        )
+                        self.draw_bounding_boxes() # Redraw all boxes including the new one
+                        self.update_status("Done (Manual)")
+                        self.log(f"Manual translation added for box: {bounding_box}")
+
+                    else:
+                        self.update_status("Error (Manual - No Original Img)")
+                        self.log("Error: Original image disappeared before processing manual result.")
+
+                except json.JSONDecodeError as json_e:
+                    self.update_status("Error (Manual - Invalid JSON)")
+                    self.log(f"Error decoding JSON response from manual translation: {json_e}")
+                    self.log(f"Cleaned text attempted for parsing: {cleaned_text}")
+                except Exception as proc_e:
+                    self.update_status("Error (Manual - Processing)")
+                    self.log(f"Error processing manual translation result: {proc_e}")
+
+            else:
+                self.update_status("Error (Manual - Empty Response)")
+                self.log("Manual translation failed: Empty response from API.")
+
+        except Exception as e:
+            # Stop timer if it's still running due to exception before status update
+            if self.timer_id:
+                 self.root.after_cancel(self.timer_id)
+                 self.timer_id = None
+                 self.timer_start_time = None
+            self.update_status("Error (Manual API Call)")
+            self.log(f"Error during manual translation API call: {str(e)}")
+
+    # --- Function to handle clicks on the canvas (restored logic) ---
+    def handle_canvas_click(self, canvas_x, canvas_y):
+        """Handles simple clicks on the canvas to select/highlight boxes."""
+        # Get image dimensions
+        if not self.original_image:
+            return
+        img_width, img_height = self.original_image.size
+
+        # Iterate through translations to find the clicked box
+        clicked_idx = -1
+        for idx, item in enumerate(self.translations):
+            bbox = item["bounding_box"]
+            if len(bbox) == 4:
+                # Convert normalized bbox to pixel coordinates
+                ymin, xmin, ymax, xmax = bbox
+                x1_orig = int(xmin * img_width / 1000)
+                y1_orig = int(ymin * img_height / 1000)
+                x2_orig = int(xmax * img_width / 1000)
+                y2_orig = int(ymax * img_height / 1000)
+
+                # (No scaling needed as scale_factor is always 1.0 now)
+                x1 = x1_orig
+                y1 = y1_orig
+                x2 = x2_orig
+                y2 = y2_orig
+
+                # Check if click is inside this box
+                if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
+                    clicked_idx = idx
+                    break # Found the topmost box
+
+        if clicked_idx != -1:
+            self.log(f"Canvas click detected inside box index {clicked_idx}")
+            self.highlight_bounding_box(clicked_idx)
+            self.update_selected_display(clicked_idx)
+        else:
+            # Clicked outside any box, clear selection and highlights
+            self.log("Canvas click detected outside any box.")
+            self.clear_selection()
+            self.draw_bounding_boxes() # Redraw normal boxes
 
 if __name__ == "__main__":
     root = tk.Tk()
