@@ -70,7 +70,11 @@ class ComicTranslator:
         
         # 将翻译按钮添加到标题栏右侧
         self.translate_btn = ttk.Button(header_frame, text="Translate Full Image", command=self.start_translation) # Rename button
-        self.translate_btn.pack(side=tk.RIGHT)
+        self.translate_btn.pack(side=tk.RIGHT, padx=(0, 5)) # Add some padding
+
+        # Add Reset Button
+        self.reset_btn = ttk.Button(header_frame, text="Reset", command=self.reset_state)
+        self.reset_btn.pack(side=tk.RIGHT)
         
         # Collapsible API settings
         self.api_frame_visible = False
@@ -920,6 +924,42 @@ class ComicTranslator:
 
         self.log(f"process_jsonl_response: Finished processing. Final translations count: {len(self.translations)}") # Added log
             
+    def reset_state(self):
+        """Clears results, selections, bounding boxes, and resets status."""
+        self.log("Resetting application state...")
+
+        # Clear translations list
+        self.translations = []
+
+        # Clear result cards from the UI
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+        self.result_labels = [] # Clear the list holding references to labels
+
+        # Clear selected region display
+        self.clear_selection()
+
+        # Clear bounding boxes from canvas
+        self.image_canvas.delete("box")
+        # Also clear manual selection rectangle if present
+        self.image_canvas.delete("selection_rect")
+        for line_id in self.selection_line_ids:
+             self.image_canvas.delete(line_id)
+        self.selection_line_ids = []
+        self.selection_start_coords = None
+        self.selection_end_coords = None
+
+
+        # Reset status label and stop timer
+        self.update_status("Not Started") # This also handles stopping the timer
+
+        # Update canvas scroll region (might be empty now)
+        self.results_canvas.update_idletasks()
+        self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
+
+        self.log("State reset complete.")
+        self.root.update() # Ensure UI reflects changes immediately
+
     # --- New method to add result cards ---
     def add_result_card(self, bounding_box, original_text, translated_text, index):
         """Adds a new card to the scrollable results frame."""
