@@ -101,13 +101,16 @@ class ComicTranslator:
         self.api_key_entry.insert(0, self.api_settings["api_key"])
         
         # Content section
-        content_frame = ttk.Frame(main_frame)
+        content_frame = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
-        
+
         # Left side - image area
-        image_frame = ttk.LabelFrame(content_frame, text="Paste image (ctrl-v) or open file")
-        image_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
+        image_frame_container = ttk.Frame(content_frame, padding=5)
+        image_frame = ttk.LabelFrame(image_frame_container, text="Paste image (ctrl-v) or open file")
+        image_frame.pack(fill=tk.BOTH, expand=True)
+
+        content_frame.add(image_frame_container, weight=35)
+
         # 使用Canvas代替Label显示图像和边界框，添加滚动条以支持大图像
         canvas_frame = ttk.Frame(image_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -132,8 +135,11 @@ class ComicTranslator:
         open_btn.pack(side=tk.BOTTOM, pady=5)
         
         # Right side - settings and results
-        right_frame = ttk.Frame(content_frame)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        right_frame_container = ttk.Frame(content_frame, padding=5)
+        right_frame = ttk.Frame(right_frame_container)
+        right_frame.pack(fill=tk.BOTH, expand=True)
+
+        content_frame.add(right_frame_container, weight=10)
         
         # Status
         status_frame = ttk.Frame(right_frame)
