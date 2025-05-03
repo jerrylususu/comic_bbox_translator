@@ -16,6 +16,39 @@
             --box-color: red;
             --selected-box-color: blue;
             --grid-color: rgba(255, 0, 0, 0.7);
+            --log-bg-color: #2d2d2d;
+            --log-text-color: #f0f0f0;
+            --header-bg-color: var(--card-background);
+            --panel-header-bg: #f8f9fa;
+            --button-secondary-bg: #95a5a6;
+            --button-secondary-hover-bg: #7f8c8d;
+            --button-disabled-bg: #ccc;
+            --input-border-color: var(--border-color);
+            --body-bg-color: var(--background-color);
+            --image-container-bg: #f0f0f0;
+        }
+
+        body.dark-mode {
+            --primary-color: #5dade2; /* Lighter blue for dark mode */
+            --secondary-color: #ec7063; /* Lighter red */
+            --background-color: #2c3e50; /* Dark blue-gray */
+            --card-background: #34495e; /* Slightly lighter dark blue-gray */
+            --border-color: #566573; /* Grayer border */
+            --text-color: #ecf0f1; /* Light gray text */
+            --highlight-color: #85c1e9; /* Lighter highlight */
+            --box-color: #e74c3c; /* Keep red for contrast? Or maybe lighter red? */
+            --selected-box-color: #5dade2; /* Use primary color */
+            --grid-color: rgba(231, 76, 60, 0.7); /* Lighter red grid */
+            --log-bg-color: #1c2833; /* Very dark blue */
+            --log-text-color: #d5dbdb; /* Lighter gray log text */
+            --header-bg-color: var(--card-background);
+            --panel-header-bg: #2c3e50; /* Darker panel header */
+            --button-secondary-bg: #7f8c8d;
+            --button-secondary-hover-bg: #95a5a6;
+            --button-disabled-bg: #566573;
+            --input-border-color: #566573;
+            --body-bg-color: var(--background-color);
+            --image-container-bg: #273746; /* Darker image background */
         }
 
         * {
@@ -26,7 +59,7 @@
         }
 
         body {
-            background-color: var(--background-color);
+            background-color: var(--body-bg-color);
             color: var(--text-color);
             line-height: 1.6;
             display: flex;
@@ -36,7 +69,7 @@
         }
 
         header {
-            background-color: var(--card-background);
+            background-color: var(--header-bg-color);
             padding: 10px 20px;
             display: flex;
             justify-content: space-between;
@@ -53,7 +86,7 @@
 
         .header-controls {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
         }
 
@@ -90,7 +123,7 @@
             flex: 1;
             position: relative;
             overflow: auto;
-            background-color: #f0f0f0;
+            background-color: var(--image-container-bg);
             cursor: crosshair;
         }
 
@@ -114,7 +147,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 8px 12px;
-            background-color: #f8f9fa;
+            background-color: var(--panel-header-bg);
             border-bottom: 1px solid var(--border-color);
             font-weight: bold;
             font-size: 14px;
@@ -147,9 +180,11 @@
         .form-input {
             flex: 1;
             padding: 6px 8px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--input-border-color);
             border-radius: 4px;
             font-size: 14px;
+            background-color: var(--card-background);
+            color: var(--text-color);
         }
 
         button {
@@ -168,11 +203,11 @@
         }
 
         button.secondary {
-            background-color: #95a5a6;
+            background-color: var(--button-secondary-bg);
         }
 
         button.secondary:hover {
-            background-color: #7f8c8d;
+            background-color: var(--button-secondary-hover-bg);
         }
 
         button.danger {
@@ -184,7 +219,7 @@
         }
 
         button:disabled {
-            background-color: #ccc;
+            background-color: var(--button-disabled-bg);
             cursor: not-allowed;
         }
 
@@ -223,11 +258,13 @@
             width: 100%;
             height: 80px;
             padding: 8px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--input-border-color);
             border-radius: 4px;
             resize: vertical;
             font-size: 14px;
             font-family: Arial, sans-serif;
+            background-color: var(--card-background);
+            color: var(--text-color);
         }
 
         .selected-region {
@@ -244,8 +281,8 @@
         #log {
             flex: 1;
             overflow-y: auto;
-            background-color: #2d2d2d;
-            color: #f0f0f0;
+            background-color: var(--log-bg-color);
+            color: var(--log-text-color);
             font-family: monospace;
             padding: 8px;
             font-size: 12px;
@@ -287,7 +324,7 @@
 
         .result-card-header {
             padding: 8px 10px;
-            background-color: #f8f9fa;
+            background-color: var(--panel-header-bg);
             border-bottom: 1px solid var(--border-color);
             font-size: 12px;
             font-weight: bold;
@@ -398,6 +435,42 @@
                 align-items: flex-start;
             }
         }
+
+        /* Slider Styles */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .slider-label {
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        #resize-slider {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+
+        #resize-value {
+            font-size: 14px;
+            min-width: 35px; /* Prevent layout shifts */
+            text-align: right;
+        }
+
+        /* Theme Toggle Styles */
+        #theme-toggle {
+            font-size: 18px; /* Adjust size as needed */
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-color);
+            padding: 5px;
+        }
+        #theme-toggle:hover {
+            color: var(--primary-color);
+        }
     </style>
 </head>
 <body>
@@ -420,8 +493,15 @@
                 <input type="checkbox" id="manual-select">
                 <span>Enable Manual Selection</span>
             </div>
+            <!-- Resize Slider -->
+            <div class="slider-container">
+                <label for="resize-slider" class="slider-label">Resize:</label>
+                <input type="range" id="resize-slider" min="10" max="100" value="100" step="1">
+                <span id="resize-value">100%</span>
+            </div>
         </div>
         <div class="header-actions">
+            <button id="theme-toggle">🌓</button> <!-- Theme Toggle Button -->
             <button id="reset-btn" class="secondary">Reset</button>
             <button id="open-btn">Open Image</button>
             <button id="translate-btn">Translate Full Image</button>
@@ -548,6 +628,9 @@
                 this.resetButton = document.getElementById('reset-btn');
                 this.openButton = document.getElementById('open-btn');
                 this.dropOverlay = document.getElementById('drop-overlay');
+                this.themeToggleButton = document.getElementById('theme-toggle');
+                this.resizeSlider = document.getElementById('resize-slider');
+                this.resizeValueDisplay = document.getElementById('resize-value');
 
                 // State variables
                 this.originalImage = null;
@@ -568,9 +651,12 @@
                 this.promptTokens = 0;
                 this.completionTokens = 0;
                 this.totalTokens = 0;
+                this.isDarkMode = false;
+                this.resizePercentage = 100;
 
-                // Load API key from localStorage if available
+                // Load API key and theme from localStorage if available
                 this.loadApiSettings();
+                this.loadThemePreference();
 
                 // Initialize
                 this.initEventListeners();
@@ -584,6 +670,7 @@
                 this.resetButton.addEventListener('click', () => this.resetState());
                 this.openButton.addEventListener('click', () => this.openImageFile());
                 this.toggleApiButton.addEventListener('click', () => this.toggleApiSettings());
+                this.themeToggleButton.addEventListener('click', () => this.toggleTheme());
 
                 // Checkbox change handlers
                 this.showGridCheckbox.addEventListener('change', () => {
@@ -603,6 +690,9 @@
                 this.endpointInput.addEventListener('change', () => this.saveApiSettings());
                 this.modelInput.addEventListener('change', () => this.saveApiSettings());
                 this.apiKeyInput.addEventListener('change', () => this.saveApiSettings());
+
+                // Resize slider handler
+                this.resizeSlider.addEventListener('input', () => this.handleResizeSlider());
 
                 // Clipboard paste handler
                 document.addEventListener('paste', (e) => this.handlePaste(e));
@@ -645,6 +735,36 @@
                 localStorage.setItem('comicTranslator.endpoint', this.endpointInput.value);
                 localStorage.setItem('comicTranslator.model', this.modelInput.value);
                 localStorage.setItem('comicTranslator.apiKey', this.apiKeyInput.value);
+            }
+
+            // Load theme preference from localStorage
+            loadThemePreference() {
+                const savedTheme = localStorage.getItem('comicTranslator.theme');
+                if (savedTheme === 'dark') {
+                    this.isDarkMode = true;
+                    document.body.classList.add('dark-mode');
+                    this.themeToggleButton.textContent = '☀️'; // Sun icon for dark mode
+                } else {
+                    this.isDarkMode = false;
+                    document.body.classList.remove('dark-mode');
+                    this.themeToggleButton.textContent = '🌓'; // Moon icon for light mode
+                }
+            }
+
+            // Save theme preference to localStorage
+            saveThemePreference() {
+                localStorage.setItem('comicTranslator.theme', this.isDarkMode ? 'dark' : 'light');
+            }
+
+            // Toggle day/night theme
+            toggleTheme() {
+                this.isDarkMode = !this.isDarkMode;
+                document.body.classList.toggle('dark-mode');
+                this.themeToggleButton.textContent = this.isDarkMode ? '☀️' : '🌓';
+                this.saveThemePreference();
+                this.log(`Theme changed to ${this.isDarkMode ? 'Dark' : 'Light'} Mode.`);
+                // Refresh display to potentially update grid/box colors if they depend on theme
+                this.refreshDisplay();
             }
 
             // Toggle API settings panel visibility
@@ -746,6 +866,16 @@
                 }
             }
 
+            // Handle resize slider change
+            handleResizeSlider() {
+                this.resizePercentage = parseInt(this.resizeSlider.value, 10);
+                this.resizeValueDisplay.textContent = `${this.resizePercentage}%`;
+                // Optional: Log the change or provide visual feedback
+                // this.log(`Image resize set to ${this.resizePercentage}%`);
+                // Refresh the display to show the resized image
+                this.refreshDisplay();
+            }
+
             // Open image file dialog
             openImageFile() {
                 const input = document.createElement('input');
@@ -818,48 +948,52 @@
             displayImage() {
                 if (!this.originalImage) return;
 
-                // Resize canvas to fit image
+                // Keep canvas internal resolution tied to original image size
                 this.canvas.width = this.originalImage.width;
                 this.canvas.height = this.originalImage.height;
-
-                // Clear canvas
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-                // Draw image
-                this.ctx.drawImage(this.originalImage, 0, 0);
-
-                // Add grid if enabled
-                if (this.showGrid) {
-                    this.addGridToCanvas();
-                }
 
                 // Clear translations and selection
                 this.translations = [];
                 this.clearSelection();
                 this.resultsContainer.innerHTML = '';
 
-                // Set image container scroll area
-                this.imageContainer.scrollTop = 0;
-                this.imageContainer.scrollLeft = 0;
+                // Call refreshDisplay to draw the image (potentially scaled)
+                this.refreshDisplay();
+
+                this.log(`Image loaded. Original dimensions: ${this.originalImage.width}x${this.originalImage.height}`);
             }
 
-            // Refresh display (e.g., after toggling grid)
+            // Refresh display (e.g., after toggling grid or resizing)
             refreshDisplay() {
                 if (!this.originalImage) return;
 
-                // Clear canvas
+                // Calculate the display dimensions based on the resize percentage
+                const displayWidth = this.originalImage.width * (this.resizePercentage / 100);
+                const displayHeight = this.originalImage.height * (this.resizePercentage / 100);
+
+                // Set the canvas element's visual size
+                this.canvas.style.width = `${displayWidth}px`;
+                this.canvas.style.height = `${displayHeight}px`;
+
+                // Clear canvas (using internal resolution)
                 this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-                // Draw image
-                this.ctx.drawImage(this.originalImage, 0, 0);
+                // Draw the original image scaled onto the canvas
+                // The canvas internal coordinates still match the original image
+                this.ctx.drawImage(this.originalImage, 0, 0, this.canvas.width, this.canvas.height);
 
-                // Add grid if enabled
+                // Add grid if enabled (drawn based on canvas internal resolution)
                 if (this.showGrid) {
                     this.addGridToCanvas();
                 }
 
-                // Redraw bounding boxes
+                // Redraw bounding boxes (drawn based on canvas internal resolution)
                 this.drawBoundingBoxes();
+
+                 // Draw the temporary manual selection rectangle if needed
+                 if (this.isSelecting && this.manualSelectEnabled && this.selectionStart && this.selectionEnd) {
+                    this.drawManualSelectionBox();
+                 }
             }
 
             // Add grid to canvas
@@ -951,11 +1085,10 @@
 
             // Handle manual selection start
             onManualSelectStart(e) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                const coords = this.getCanvasCoordinates(e);
+                if (!coords) return;
 
-                this.selectionStart = { x, y };
+                this.selectionStart = { x: coords.x, y: coords.y };
                 this.selectionEnd = null;
                 this.isSelecting = true;
             }
@@ -964,100 +1097,156 @@
             onManualSelectDrag(e) {
                 if (!this.isSelecting) return;
 
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                const coords = this.getCanvasCoordinates(e);
+                 if (!coords) return;
 
-                this.selectionEnd = { x, y };
+                this.selectionEnd = { x: coords.x, y: coords.y };
 
                 // Redraw to show selection rectangle
-                this.refreshDisplay();
-
-                if (this.manualSelectEnabled && this.selectionStart && this.selectionEnd) {
-                    this.ctx.save();
-                    this.ctx.strokeStyle = 'green';
-                    this.ctx.lineWidth = 2;
-                    this.ctx.setLineDash([5, 5]);
-
-                    const x1 = this.selectionStart.x;
-                    const y1 = this.selectionStart.y;
-                    const x2 = this.selectionEnd.x;
-                    const y2 = this.selectionEnd.y;
-
-                    this.ctx.beginPath();
-                    this.ctx.rect(
-                        Math.min(x1, x2),
-                        Math.min(y1, y2),
-                        Math.abs(x2 - x1),
-                        Math.abs(y2 - y1)
-                    );
-                    this.ctx.stroke();
-                    this.ctx.restore();
-                }
+                this.refreshDisplay(); // refreshDisplay now handles drawing the selection box
             }
 
             // Handle manual selection end
             onManualSelectEnd(e) {
                 if (!this.isSelecting) return;
 
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                const coords = this.getCanvasCoordinates(e);
+                if (!coords) {
+                    this.isSelecting = false; // Ensure selecting state is reset
+                    this.refreshDisplay(); // Redraw to clear any partial selection box
+                    return;
+                }
 
-                this.selectionEnd = { x, y };
-                this.isSelecting = false;
+
+                this.selectionEnd = { x: coords.x, y: coords.y };
+                this.isSelecting = false; // Selection ends here
 
                 // Handle as click or selection
                 if (this.manualSelectEnabled && this.selectionStart && this.selectionEnd) {
                     const distX = Math.abs(this.selectionStart.x - this.selectionEnd.x);
                     const distY = Math.abs(this.selectionStart.y - this.selectionEnd.y);
 
-                    if (distX > 10 && distY > 10) {
+                    // Use a small threshold to distinguish click from drag
+                    const clickThreshold = 5 * (this.canvas.width / this.canvas.clientWidth); // Scale threshold
+
+                    if (distX > clickThreshold || distY > clickThreshold) {
                         // It's a real selection, not just a click
                         const x1 = Math.min(this.selectionStart.x, this.selectionEnd.x);
                         const y1 = Math.min(this.selectionStart.y, this.selectionEnd.y);
                         const x2 = Math.max(this.selectionStart.x, this.selectionEnd.x);
                         const y2 = Math.max(this.selectionStart.y, this.selectionEnd.y);
 
-                        this.translateManualSelection(x1, y1, x2, y2);
+                        // Ensure coordinates are within bounds
+                        const boundedX1 = Math.max(0, Math.floor(x1));
+                        const boundedY1 = Math.max(0, Math.floor(y1));
+                        const boundedX2 = Math.min(this.canvas.width, Math.ceil(x2));
+                        const boundedY2 = Math.min(this.canvas.height, Math.ceil(y2));
+
+
+                        if (boundedX2 > boundedX1 && boundedY2 > boundedY1) {
+                             this.translateManualSelection(boundedX1, boundedY1, boundedX2, boundedY2);
+                        } else {
+                            this.log("Selection area is too small or invalid.");
+                            this.refreshDisplay(); // Clear selection visuals
+                        }
                     } else {
                         // It's a click - check if it's inside a box
-                        this.handleCanvasClick(x, y);
+                        this.handleCanvasClick(this.selectionEnd.x, this.selectionEnd.y);
                     }
                 } else {
-                    // Manual selection not enabled, treat as click
-                    this.handleCanvasClick(x, y);
+                    // Manual selection not enabled, treat as click using the end coordinates
+                    this.handleCanvasClick(this.selectionEnd.x, this.selectionEnd.y);
                 }
 
-                // Clear selection state
-                this.refreshDisplay();
+                // Clear selection state variables after processing
+                this.selectionStart = null;
+                this.selectionEnd = null;
+
+                // Redraw canvas to remove the selection rectangle highlight
+                 this.refreshDisplay();
+            }
+
+             // Helper function to draw the manual selection box during drag
+            drawManualSelectionBox() {
+                if (!this.manualSelectEnabled || !this.selectionStart || !this.selectionEnd) return;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // More visible green
+                this.ctx.lineWidth = 2 / (this.canvas.width / this.canvas.clientWidth); // Scale line width
+                this.ctx.setLineDash([5, 5]);
+
+                const x1 = this.selectionStart.x;
+                const y1 = this.selectionStart.y;
+                const x2 = this.selectionEnd.x;
+                const y2 = this.selectionEnd.y;
+
+                this.ctx.beginPath();
+                this.ctx.rect(
+                    Math.min(x1, x2),
+                    Math.min(y1, y2),
+                    Math.abs(x2 - x1),
+                    Math.abs(y2 - y1)
+                );
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            // Helper function to get canvas coordinates adjusted for display scaling
+            getCanvasCoordinates(event) {
+                if (!this.originalImage) return null; // No image, no coordinates
+
+                const rect = this.canvas.getBoundingClientRect();
+
+                // Check if clientWidth/Height are zero to prevent division by zero
+                if (rect.width === 0 || rect.height === 0) {
+                    this.log("Canvas dimensions are zero, cannot calculate coordinates.");
+                    return null;
+                }
+
+                // Calculate scale based on current display size vs intrinsic size
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+
+                // Get click coordinates relative to canvas top-left
+                const canvasX = event.clientX - rect.left;
+                const canvasY = event.clientY - rect.top;
+
+                // Scale coordinates to match the original image coordinate system (canvas internal resolution)
+                const x = canvasX * scaleX;
+                const y = canvasY * scaleY;
+
+                 // Clamp coordinates to be within the canvas bounds
+                const clampedX = Math.max(0, Math.min(this.canvas.width, x));
+                const clampedY = Math.max(0, Math.min(this.canvas.height, y));
+
+                return { x: clampedX, y: clampedY };
             }
 
             // Handle canvas click to select boxes
-            handleCanvasClick(x, y) {
-                if (!this.originalImage) return;
+            handleCanvasClick(x, y) { // x, y are already in canvas coordinates
+                if (!this.originalImage || !this.translations.length) return;
 
-                const imgWidth = this.originalImage.width;
-                const imgHeight = this.originalImage.height;
+                const imgWidth = this.originalImage.width; // Use original width for scaling factor
+                const imgHeight = this.originalImage.height; // Use original height for scaling factor
 
                 // Check if click is inside any box
                 let clickedIdx = -1;
-                for (let i = 0; i < this.translations.length; i++) {
+                for (let i = this.translations.length - 1; i >= 0; i--) { // Iterate backwards to select topmost box
                     const item = this.translations[i];
                     const bbox = item.boundingBox;
 
                     if (bbox.length === 4) {
-                        // Parse coordinates [ymin, xmin, ymax, xmax]
+                        // Parse normalized coordinates [ymin, xmin, ymax, xmax]
                         const [ymin, xmin, ymax, xmax] = bbox;
 
-                        // Convert from normalized coordinates to actual pixels
-                        const x1 = Math.floor(xmin * imgWidth / 1000);
-                        const y1 = Math.floor(ymin * imgHeight / 1000);
-                        const x2 = Math.floor(xmax * imgWidth / 1000);
-                        const y2 = Math.floor(ymax * imgHeight / 1000);
+                        // Convert from normalized coordinates (0-1000) to actual pixels (canvas coordinates)
+                        const boxX1 = Math.floor(xmin * imgWidth / 1000);
+                        const boxY1 = Math.floor(ymin * imgHeight / 1000);
+                        const boxX2 = Math.floor(xmax * imgWidth / 1000);
+                        const boxY2 = Math.floor(ymax * imgHeight / 1000);
 
-                        // Check if click is inside box
-                        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
+                        // Check if click (in canvas coordinates) is inside the box (also in canvas coordinates)
+                        if (x >= boxX1 && x <= boxX2 && y >= boxY1 && y <= boxY2) {
                             clickedIdx = i;
                             break; // Found topmost box
                         }
@@ -1098,26 +1287,66 @@
                 }
             }
 
-            // Create canvas with a portion of the original image for manual selection
-            cropImageForSelection(x1, y1, x2, y2) {
+            // Create canvas with a potentially resized portion of the original image
+            cropAndResizeImage(x1, y1, x2, y2, percentage) {
                 if (!this.originalImage) return null;
 
-                // Create a temporary canvas for cropping
+                const sourceWidth = x2 - x1;
+                const sourceHeight = y2 - y1;
+
+                // Calculate target dimensions based on percentage
+                const targetWidth = Math.round(sourceWidth * (percentage / 100));
+                const targetHeight = Math.round(sourceHeight * (percentage / 100));
+
+                // Create a temporary canvas for cropping and resizing
                 const tempCanvas = document.createElement('canvas');
                 const tempCtx = tempCanvas.getContext('2d');
 
-                // Set canvas size to selection size
-                tempCanvas.width = x2 - x1;
-                tempCanvas.height = y2 - y1;
+                // Set canvas size to target size
+                tempCanvas.width = targetWidth;
+                tempCanvas.height = targetHeight;
 
-                // Draw selected portion of image to temp canvas
+                // Draw selected portion of image onto temp canvas, resizing it
                 tempCtx.drawImage(
                     this.originalImage,
-                    x1, y1, x2 - x1, y2 - y1,
-                    0, 0, x2 - x1, y2 - y1
+                    x1, y1, sourceWidth, sourceHeight,       // Source rectangle
+                    0, 0, targetWidth, targetHeight         // Destination rectangle (resizing)
                 );
 
                 // Return as data URL
+                return tempCanvas.toDataURL('image/png');
+            }
+
+            // Get base64 data URL of the full image, potentially resized
+            getResizedImageData(percentage) {
+                if (!this.originalImage) return null;
+
+                // If 100%, return the original cached data
+                if (percentage === 100 && this.imageData) {
+                    return this.imageData;
+                }
+
+                const sourceWidth = this.originalImage.naturalWidth;
+                const sourceHeight = this.originalImage.naturalHeight;
+
+                // Calculate target dimensions
+                const targetWidth = Math.round(sourceWidth * (percentage / 100));
+                const targetHeight = Math.round(sourceHeight * (percentage / 100));
+
+                // Create temp canvas
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = targetWidth;
+                tempCanvas.height = targetHeight;
+
+                // Draw resized image
+                tempCtx.drawImage(
+                    this.originalImage,
+                    0, 0, sourceWidth, sourceHeight,
+                    0, 0, targetWidth, targetHeight
+                );
+
+                // Return data URL
                 return tempCanvas.toDataURL('image/png');
             }
 
@@ -1128,13 +1357,14 @@
                     return;
                 }
 
-                this.log(`Manual selection: (${x1}, ${y1}) to (${x2}, ${y2})`);
+                this.log(`Manual selection: (${x1}, ${y1}) to (${x2}, ${y2}) at ${this.resizePercentage}% size`);
                 this.updateStatus('Sent (Manual)');
 
-                // Crop image to selection
-                const croppedImageData = this.cropImageForSelection(x1, y1, x2, y2);
-                if (!croppedImageData) {
-                    this.log('Error: Failed to crop image');
+                // Crop and resize image to selection based on current slider value
+                const croppedResizedImageData = this.cropAndResizeImage(x1, y1, x2, y2, this.resizePercentage);
+                if (!croppedResizedImageData) {
+                    this.log('Error: Failed to crop and resize image');
+                    this.updateStatus('Error (Image Crop/Resize)');
                     return;
                 }
 
@@ -1172,7 +1402,7 @@
                                 {
                                     type: 'image_url',
                                     image_url: {
-                                        url: croppedImageData
+                                        url: croppedResizedImageData
                                     }
                                 }
                             ]
@@ -1292,6 +1522,7 @@
                     return;
                 }
 
+                this.log(`Starting full image translation at ${this.resizePercentage}% size...`);
                 this.updateStatus('Sent');
 
                 // Clear previous results
@@ -1312,6 +1543,14 @@
 
                 // Get user prompt
                 const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this comic to Simplified Chinese.';
+
+                // Get potentially resized image data
+                const currentImageData = this.getResizedImageData(this.resizePercentage);
+                if (!currentImageData) {
+                     this.log('Error: Failed to get resized image data');
+                     this.updateStatus('Error (Image Resize)');
+                     return;
+                }
 
                 // Prepare system message
                 const systemMessage = `You are a comic translator. Analyze the image to:
@@ -1346,7 +1585,7 @@
                                 {
                                     type: 'image_url',
                                     image_url: {
-                                        url: this.imageData
+                                        url: currentImageData
                                     }
                                 }
                             ]
