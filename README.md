@@ -1,5 +1,7 @@
 # comic-bbox-translator (带边界框的漫画翻译器)
 
+[尝试在线版本](https://nekonull.me/comic_bbox_translator/)
+
 > **Warning**
 > 本项目代码由 LLM 生成，未经过充分测试，可能存在以下问题:
 > - 代码质量无法保证
