@@ -177,7 +177,7 @@
             font-size: 14px;
         }
 
-        .form-input {
+        .form-input, .form-select { /* Apply similar styling to select */
             flex: 1;
             padding: 6px 8px;
             border: 1px solid var(--input-border-color);
@@ -185,6 +185,24 @@
             font-size: 14px;
             background-color: var(--card-background);
             color: var(--text-color);
+        }
+
+        /* Hide OpenAI specific fields by default */
+        .openai-field {
+            display: none;
+        }
+
+        /* Hide Gemini specific fields by default */
+        .gemini-field {
+            display: none;
+        }
+
+        /* Show fields based on data attribute */
+        .api-settings[data-api-type="openai"] .openai-field {
+            display: flex; /* Use flex as it was the original display type for form-row */
+        }
+        .api-settings[data-api-type="gemini"] .gemini-field {
+            display: flex; /* Use flex */
         }
 
         button {
@@ -526,15 +544,31 @@
                     <button class="toggle-btn" id="toggle-api">▼</button>
                 </div>
                 <div class="panel-content">
+                     <!-- API Type Selector -->
+                     <div class="form-row">
+                        <label for="api-type" class="form-label">API Type:</label>
+                        <select id="api-type" class="form-select">
+                            <option value="openai" selected>OpenAI Compatible</option>
+                            <option value="gemini">Google Gemini</option>
+                        </select>
+                    </div>
+                    <!-- Conditional Fields Container -->
                     <div class="api-settings" id="api-settings">
-                        <div class="form-row">
+                        <!-- OpenAI Specific Fields -->
+                        <div class="form-row openai-field">
                             <label class="form-label">Endpoint:</label>
                             <input type="text" id="endpoint" class="form-input" value="https://api.openai.com/v1/chat/completions">
                         </div>
-                        <div class="form-row">
+                        <div class="form-row openai-field">
                             <label class="form-label">Model:</label>
-                            <input type="text" id="model" class="form-input" value="gpt-4-vision-preview">
+                            <input type="text" id="model-openai" class="form-input" value="gpt-4-vision-preview">
                         </div>
+                        <!-- Gemini Specific Fields -->
+                        <div class="form-row gemini-field">
+                             <label class="form-label">Model:</label>
+                             <input type="text" id="model-gemini" class="form-input" value="gemini-1.5-flash-latest">
+                        </div>
+                        <!-- Common Fields (API Key) -->
                         <div class="form-row">
                             <label class="form-label">API Key:</label>
                             <input type="password" id="api-key" class="form-input">
@@ -619,8 +653,10 @@
                 this.userPromptElement = document.getElementById('user-prompt');
                 this.toggleApiButton = document.getElementById('toggle-api');
                 this.apiSettingsElement = document.getElementById('api-settings');
-                this.endpointInput = document.getElementById('endpoint');
-                this.modelInput = document.getElementById('model');
+                this.apiTypeSelect = document.getElementById('api-type'); // New
+                this.endpointInput = document.getElementById('endpoint'); // OpenAI
+                this.modelOpenaiInput = document.getElementById('model-openai'); // OpenAI
+                this.modelGeminiInput = document.getElementById('model-gemini'); // Gemini
                 this.apiKeyInput = document.getElementById('api-key');
                 this.showGridCheckbox = document.getElementById('show-grid');
                 this.manualSelectCheckbox = document.getElementById('manual-select');
@@ -653,9 +689,10 @@
                 this.totalTokens = 0;
                 this.isDarkMode = false;
                 this.resizePercentage = 100;
+                this.apiType = 'openai'; // Default API type
 
-                // Load API key and theme from localStorage if available
-                this.loadApiSettings();
+                // Load settings and theme
+                this.loadApiSettings(); // Will also set initial visibility
                 this.loadThemePreference();
 
                 // Initialize
@@ -687,8 +724,10 @@
                 this.canvas.addEventListener('mouseup', (e) => this.onManualSelectEnd(e));
 
                 // API settings change handlers
+                this.apiTypeSelect.addEventListener('change', () => this.handleApiTypeChange());
                 this.endpointInput.addEventListener('change', () => this.saveApiSettings());
-                this.modelInput.addEventListener('change', () => this.saveApiSettings());
+                this.modelOpenaiInput.addEventListener('change', () => this.saveApiSettings());
+                this.modelGeminiInput.addEventListener('change', () => this.saveApiSettings());
                 this.apiKeyInput.addEventListener('change', () => this.saveApiSettings());
 
                 // Resize slider handler
@@ -719,21 +758,47 @@
                 window.addEventListener('resize', () => this.handleResize());
             }
 
+            // Handle API type change
+            handleApiTypeChange() {
+                this.apiType = this.apiTypeSelect.value;
+                this.updateApiFieldVisibility();
+                this.saveApiSettings();
+                this.log(`API type changed to: ${this.apiType}`);
+            }
+
+            // Update visibility of API setting fields based on selected type
+            updateApiFieldVisibility() {
+                this.apiSettingsElement.dataset.apiType = this.apiType;
+            }
+
             // Load API settings from localStorage
             loadApiSettings() {
+                const savedApiType = localStorage.getItem('comicTranslator.apiType');
                 const savedEndpoint = localStorage.getItem('comicTranslator.endpoint');
-                const savedModel = localStorage.getItem('comicTranslator.model');
+                const savedModelOpenai = localStorage.getItem('comicTranslator.modelOpenai');
+                const savedModelGemini = localStorage.getItem('comicTranslator.modelGemini');
                 const savedApiKey = localStorage.getItem('comicTranslator.apiKey');
 
+                if (savedApiType) {
+                    this.apiType = savedApiType;
+                    this.apiTypeSelect.value = savedApiType;
+                } else {
+                    this.apiType = this.apiTypeSelect.value; // Use default if nothing saved
+                }
+                this.updateApiFieldVisibility(); // Set initial visibility
+
                 if (savedEndpoint) this.endpointInput.value = savedEndpoint;
-                if (savedModel) this.modelInput.value = savedModel;
+                if (savedModelOpenai) this.modelOpenaiInput.value = savedModelOpenai;
+                if (savedModelGemini) this.modelGeminiInput.value = savedModelGemini;
                 if (savedApiKey) this.apiKeyInput.value = savedApiKey;
             }
 
             // Save API settings to localStorage
             saveApiSettings() {
+                localStorage.setItem('comicTranslator.apiType', this.apiTypeSelect.value);
                 localStorage.setItem('comicTranslator.endpoint', this.endpointInput.value);
-                localStorage.setItem('comicTranslator.model', this.modelInput.value);
+                localStorage.setItem('comicTranslator.modelOpenai', this.modelOpenaiInput.value);
+                localStorage.setItem('comicTranslator.modelGemini', this.modelGeminiInput.value);
                 localStorage.setItem('comicTranslator.apiKey', this.apiKeyInput.value);
             }
 
@@ -1208,12 +1273,14 @@
                 const scaleY = this.canvas.height / rect.height;
 
                 // Get click coordinates relative to canvas top-left
-                const canvasX = event.clientX - rect.left;
-                const canvasY = event.clientY - rect.top;
+                const canvasX = event.clientX;
+                const canvasY = event.clientY;
+                const canvasXRelative = canvasX - rect.left;
+                const canvasYRelative = canvasY - rect.top;
 
                 // Scale coordinates to match the original image coordinate system (canvas internal resolution)
-                const x = canvasX * scaleX;
-                const y = canvasY * scaleY;
+                const x = canvasXRelative * scaleX;
+                const y = canvasYRelative * scaleY;
 
                  // Clamp coordinates to be within the canvas bounds
                 const clampedX = Math.max(0, Math.min(this.canvas.width, x));
@@ -1358,7 +1425,7 @@
                 }
 
                 this.log(`Manual selection: (${x1}, ${y1}) to (${x2}, ${y2}) at ${this.resizePercentage}% size`);
-                this.updateStatus('Sent (Manual)');
+                
 
                 // Crop and resize image to selection based on current slider value
                 const croppedResizedImageData = this.cropAndResizeImage(x1, y1, x2, y2, this.resizePercentage);
@@ -1368,10 +1435,10 @@
                     return;
                 }
 
-                // Get API settings
-                const endpoint = this.endpointInput.value;
-                const model = this.modelInput.value;
+                // Get common API settings
                 const apiKey = this.apiKeyInput.value;
+                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this image.';
+                const apiType = this.apiType; // Use the stored apiType
 
                 if (!apiKey) {
                     this.log('Error: API Key is required');
@@ -1379,51 +1446,99 @@
                     return;
                 }
 
-                // Get user prompt
-                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this image.';
+                this.updateStatus('Sent (Manual)');
 
-                // Prepare request data
-                const requestData = {
-                    model: model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
+                let requestEndpoint = '';
+                let requestBody = {};
+                let systemPrompt = '';
+
+                if (apiType === 'openai') {
+                    // --- OpenAI Request ---
+                    requestEndpoint = this.endpointInput.value;
+                    const model = this.modelOpenaiInput.value;
+                    systemPrompt = `You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
                             Format your response as a single JSON object:
                             {"org": "Original text found", "res": "Translated Chinese text"}
                             
                             If no text is found, return:
-                            {"org": "", "res": ""}`
-                        },
-                        {
-                            role: 'user',
-                            content: [
-                                { type: 'text', text: userPrompt },
-                                {
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: croppedResizedImageData
+                            {"org": "", "res": ""}`;
+
+                    requestBody = {
+                        model: model,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: userPrompt },
+                                    {
+                                        type: 'image_url',
+                                        image_url: { url: croppedResizedImageData }
                                     }
-                                }
-                            ]
-                        }
-                    ]
-                };
+                                ]
+                            }
+                        ]
+                    };
+                    this.log(`Using OpenAI Compatible API: ${requestEndpoint} with model ${model}`);
+
+                } else if (apiType === 'gemini') {
+                    // --- Gemini Request ---
+                    const model = this.modelGeminiInput.value;
+                    // Construct Gemini endpoint
+                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    
+                    systemPrompt = `You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
+                            Format your response strictly as a single JSON object with keys "org" and "res":
+                            {"org": "Original text found", "res": "Translated Chinese text"}
+                            
+                            If no text is found, return:
+                            {"org": "", "res": ""}`;
+
+                    requestBody = {
+                        contents: [
+                            {
+                                parts: [
+                                    { text: systemPrompt }, // Combine system and user prompts for Gemini
+                                    { text: userPrompt },
+                                    {
+                                        inline_data: {
+                                            mime_type: "image/png", // Assuming PNG from crop function
+                                            data: croppedResizedImageData.split(',')[1] // Remove data:image/png;base64,
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        // Optional: Add generationConfig if needed
+                        // generationConfig: {
+                        //   "response_mime_type": "application/json", // Request JSON output
+                        // }
+                    };
+                    this.log(`Using Google Gemini API: ${requestEndpoint} (model: ${model})`);
+                } else {
+                     this.log(`Error: Unknown API Type "${apiType}"`);
+                     this.updateStatus('Error (Unknown API Type)');
+                     return;
+                }
 
                 this.updateStatus('Waiting Response');
 
                 // Make API request
-                fetch(endpoint, {
+                fetch(requestEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                         // OpenAI uses Bearer token, Gemini uses key in URL (usually)
+                         ...(apiType === 'openai' && { 'Authorization': `Bearer ${apiKey}` })
                     },
-                    body: JSON.stringify(requestData)
+                    body: JSON.stringify(requestBody)
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                        // Try to read the error body for more details
+                        return response.text().then(text => {
+                             throw new Error(`API request failed: ${response.status} ${response.statusText} - ${text}`);
+                        });
                     }
                     return response.json();
                 })
@@ -1431,87 +1546,132 @@
                     this.updateStatus('Processing Response');
                     this.log('Manual translation response received');
 
-                    // Extract usage data if available
-                    if (data.usage) {
-                        this.promptTokens = data.usage.prompt_tokens;
-                        this.completionTokens = data.usage.completion_tokens;
-                        this.totalTokens = data.usage.total_tokens;
+                    let content = '';
+                    let usage = null; // Store usage data if found
+
+                    if (apiType === 'openai') {
+                        // --- Process OpenAI Response ---
+                        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+                             content = data.choices[0].message.content;
+                             usage = data.usage;
+                        } else {
+                             this.log('Invalid or empty response structure from OpenAI API');
+                             throw new Error('Invalid OpenAI response structure');
+                        }
+                    } else if (apiType === 'gemini') {
+                        // --- Process Gemini Response ---
+                        // Gemini response structure is different
+                        if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                            // Find the text part (might be others like function calls)
+                            const textPart = data.candidates[0].content.parts.find(part => part.text);
+                            if (textPart) {
+                                content = textPart.text;
+                            } else {
+                                this.log('No text part found in Gemini response candidate.');
+                                throw new Error('No text part in Gemini response');
+                            }
+                             // Gemini API might return usage info differently, check documentation if needed
+                             // Example: data.usageMetadata
+                             if (data.usageMetadata) {
+                                usage = data.usageMetadata; // Adjust key names as needed
+                                this.promptTokens = usage.promptTokenCount || 0;
+                                this.completionTokens = usage.candidatesTokenCount || 0;
+                                this.totalTokens = usage.totalTokenCount || 0;
+                             } else {
+                                this.promptTokens = 0;
+                                this.completionTokens = 0;
+                                this.totalTokens = 0; // Reset if no usage provided
+                             }
+
+                        } else {
+                            this.log('Invalid or empty response structure from Gemini API');
+                            this.log(`Raw Gemini Response: ${JSON.stringify(data)}`);
+                            throw new Error('Invalid Gemini response structure');
+                        }
                     }
 
-                    // Extract and process response
-                    if (data.choices && data.choices.length > 0) {
-                        const content = data.choices[0].message.content;
-                        this.log(`Response content: ${content}`);
+                     // Extract usage data if available (OpenAI format)
+                     if (apiType === 'openai' && usage) {
+                         this.promptTokens = usage.prompt_tokens || 0;
+                         this.completionTokens = usage.completion_tokens || 0;
+                         this.totalTokens = usage.total_tokens || 0;
+                     } else if (apiType !== 'gemini'){ // Only reset if not Gemini and no OpenAI usage found
+                        this.promptTokens = 0;
+                        this.completionTokens = 0;
+                        this.totalTokens = 0;
+                     }
 
-                        try {
-                            // Clean up and parse the response
-                            let cleanedContent = content.trim();
-                            // Remove markdown code blocks if present
-                            if (cleanedContent.startsWith('```json')) {
-                                cleanedContent = cleanedContent.substring(7);
-                            }
-                            if (cleanedContent.startsWith('```')) {
-                                cleanedContent = cleanedContent.substring(3);
-                            }
-                            if (cleanedContent.endsWith('```')) {
-                                cleanedContent = cleanedContent.substring(0, cleanedContent.length - 3);
-                            }
-                            
-                            cleanedContent = cleanedContent.trim();
-                            
-                            const result = JSON.parse(cleanedContent);
-                            const originalText = result.org || '';
-                            const translatedText = result.res || '';
+                    this.log(`Response content: ${content}`);
 
-                            if (!originalText && !translatedText) {
-                                this.log('No text found in the selection');
-                                this.updateStatus('Done (Manual - No Text)');
-                                return;
-                            }
-
-                            // Calculate normalized bounding box coordinates
-                            const imgWidth = this.originalImage.width;
-                            const imgHeight = this.originalImage.height;
-
-                            // Normalize coordinates [ymin, xmin, ymax, xmax]
-                            const normYmin = Math.floor(y1 * 1000 / imgHeight);
-                            const normXmin = Math.floor(x1 * 1000 / imgWidth);
-                            const normYmax = Math.floor(y2 * 1000 / imgHeight);
-                            const normXmax = Math.floor(x2 * 1000 / imgWidth);
-                            const boundingBox = [normYmin, normXmin, normYmax, normXmax];
-
-                            // Add to translations
-                            const newTranslation = {
-                                boundingBox: boundingBox,
-                                originalText: originalText,
-                                translatedText: translatedText
-                            };
-
-                            this.translations.push(newTranslation);
-                            const newIndex = this.translations.length - 1;
-
-                            // Add result card
-                            this.addResultCard(newIndex);
-
-                            // Update display
-                            this.drawBoundingBoxes();
-                            this.selectTranslation(newIndex);
-
-                            // Update status
-                            const doneStatus = this.getDoneStatusMessage().replace('Done', 'Done (Manual)');
-                            this.updateStatus(doneStatus);
-                        } catch (e) {
-                            this.log(`Error parsing response: ${e.message}`);
-                            this.updateStatus('Error (Manual - Invalid Response)');
+                    try {
+                        // Clean up potential markdown and parse the response
+                        let cleanedContent = content.trim();
+                        if (cleanedContent.startsWith('```json')) {
+                            cleanedContent = cleanedContent.substring(7);
                         }
-                    } else {
-                        this.log('Invalid or empty response from API');
-                        this.updateStatus('Error (Manual - Empty Response)');
+                        if (cleanedContent.startsWith('```')) {
+                            cleanedContent = cleanedContent.substring(3);
+                        }
+                        if (cleanedContent.endsWith('```')) {
+                            cleanedContent = cleanedContent.substring(0, cleanedContent.length - 3);
+                        }
+                        cleanedContent = cleanedContent.trim();
+
+                        // Handle potential empty cleaned content
+                        if (!cleanedContent) {
+                             this.log('Received empty content after cleanup.');
+                             throw new Error('Empty content after cleanup');
+                        }
+
+                        const result = JSON.parse(cleanedContent);
+                        const originalText = result.org || '';
+                        const translatedText = result.res || '';
+
+                        if (!originalText && !translatedText) {
+                            this.log('No text found in the selection');
+                            this.updateStatus('Done (Manual - No Text)');
+                            return;
+                        }
+
+                        // Calculate normalized bounding box coordinates
+                        const imgWidth = this.originalImage.width;
+                        const imgHeight = this.originalImage.height;
+
+                        // Normalize coordinates [ymin, xmin, ymax, xmax]
+                        const normYmin = Math.floor(y1 * 1000 / imgHeight);
+                        const normXmin = Math.floor(x1 * 1000 / imgWidth);
+                        const normYmax = Math.floor(y2 * 1000 / imgHeight);
+                        const normXmax = Math.floor(x2 * 1000 / imgWidth);
+                        const boundingBox = [normYmin, normXmin, normYmax, normXmax];
+
+                        // Add to translations
+                        const newTranslation = {
+                            boundingBox: boundingBox,
+                            originalText: originalText,
+                            translatedText: translatedText
+                        };
+
+                        this.translations.push(newTranslation);
+                        const newIndex = this.translations.length - 1;
+
+                        // Add result card
+                        this.addResultCard(newIndex);
+
+                        // Update display
+                        this.drawBoundingBoxes();
+                        this.selectTranslation(newIndex);
+
+                        // Update status
+                        const doneStatus = this.getDoneStatusMessage().replace('Done', 'Done (Manual)');
+                        this.updateStatus(doneStatus);
+                    } catch (e) {
+                        this.log(`Error processing response content: ${e.message}. Content was: "${content}"`);
+                        this.updateStatus('Error (Manual - Invalid Response Format)');
                     }
                 })
                 .catch(error => {
                     this.log(`API request error: ${error.message}`);
-                    this.updateStatus('Error (Manual API Call)');
+                    this.updateStatus(`Error (Manual API Call: ${error.message.substring(0, 100)})`); // Truncate long errors
                 });
             }
 
@@ -1530,19 +1690,16 @@
                 this.resultsContainer.innerHTML = '';
                 this.clearSelection();
 
-                // Get API settings
-                const endpoint = this.endpointInput.value;
-                const model = this.modelInput.value;
+                // Get common API settings
                 const apiKey = this.apiKeyInput.value;
+                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this comic to Simplified Chinese.';
+                const apiType = this.apiType; // Use the stored apiType
 
                 if (!apiKey) {
                     this.log('Error: API Key is required');
                     this.updateStatus('Error (No API Key)');
                     return;
                 }
-
-                // Get user prompt
-                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this comic to Simplified Chinese.';
 
                 // Get potentially resized image data
                 const currentImageData = this.getResizedImageData(this.resizePercentage);
@@ -1552,68 +1709,111 @@
                      return;
                 }
 
-                // Prepare system message
-                const systemMessage = `You are a comic translator. Analyze the image to:
-                1. Find text in speech bubbles or captions
-                2. Return the original text
-                3. Translate it to Chinese (Simplified)
-                4. Return the bounding box coordinates for each text segment
-                
-                Format your response as JSONL (JSON Lines) where each text bubble is a separate JSON object on a new line:
-                (coordinates are normalized to 1000 and in the format [ymin, xmin, ymax, xmax] where the top left corner is the zero point and has position 0,0)
-                {"box_2d": [ymin, xmin, ymax, xmax], "org": "Original text", "res": "Translated text"}
-                ...
-                
-                This format allows each text bubble to be processed as soon as it's identified.
-                
-                Important: Always normalize the bounding box coordinates to a range of 0 to 1000, where 0,0 is the top-left corner
-                and 1000,1000 is the bottom-right corner of the image. The bounding box coordinates MUST be in the order:
-                [ymin, xmin, ymax, xmax]. Make sure the keys are exactly "box_2d", "org", and "res".`;
+                let requestEndpoint = '';
+                let requestBody = {};
+                let systemMessage = '';
 
-                // Prepare request data
-                const requestData = {
-                    model: model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: systemMessage
-                        },
-                        {
-                            role: 'user',
-                            content: [
-                                { type: 'text', text: userPrompt },
-                                {
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: currentImageData
+                if (apiType === 'openai') {
+                     // --- OpenAI Request ---
+                    requestEndpoint = this.endpointInput.value;
+                    const model = this.modelOpenaiInput.value;
+                    systemMessage = `You are a comic translator. Analyze the image to:
+                    1. Find text in speech bubbles or captions
+                    2. Return the original text
+                    3. Translate it to Chinese (Simplified)
+                    4. Return the bounding box coordinates for each text segment
+                    
+                    Format your response as JSONL (JSON Lines) where each text bubble is a separate JSON object on a new line:
+                    (coordinates are normalized to 1000 and in the format [ymin, xmin, ymax, xmax] where the top left corner is the zero point and has position 0,0)
+                    {"box_2d": [ymin, xmin, ymax, xmax], "org": "Original text", "res": "Translated text"}
+                    ...
+                    
+                    This format allows each text bubble to be processed as soon as it's identified.
+                    
+                    Important: Always normalize the bounding box coordinates to a range of 0 to 1000, where 0,0 is the top-left corner
+                    and 1000,1000 is the bottom-right corner of the image. The bounding box coordinates MUST be in the order:
+                    [ymin, xmin, ymax, xmax]. Make sure the keys are exactly "box_2d", "org", and "res".`;
+
+                    requestBody = {
+                        model: model,
+                        messages: [
+                            { role: 'system', content: systemMessage },
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: userPrompt },
+                                    {
+                                        type: 'image_url',
+                                        image_url: { url: currentImageData }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    stream: true
-                };
+                                ]
+                            }
+                        ],
+                        stream: true
+                    };
+                     this.log(`Using OpenAI Compatible API (Streaming): ${requestEndpoint} with model ${model}`);
+
+                } else if (apiType === 'gemini') {
+                     // --- Gemini Request ---
+                     const model = this.modelGeminiInput.value;
+                    // Construct Gemini *streaming* endpoint
+                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`; // Use alt=sse for EventSource compatibility
+
+                     systemMessage = `You are a comic translator. Analyze the image to:
+                    1. Find text in speech bubbles or captions
+                    2. Return the original text
+                    3. Translate it to Chinese (Simplified)
+                    4. Return the bounding box coordinates for each text segment
+                    
+                    Format your response strictly as JSONL (JSON Lines) where each text bubble is a separate JSON object on a new line:
+                    (coordinates are normalized to 1000 and in the format [ymin, xmin, ymax, xmax] where the top left corner is the zero point and has position 0,0)
+                    {"box_2d": [ymin, xmin, ymax, xmax], "org": "Original text", "res": "Translated text"}
+                    ...
+                    
+                    Important: 
+                    - Each JSON object MUST be on its own line.
+                    - Always normalize the bounding box coordinates to a range of 0 to 1000 ([ymin, xmin, ymax, xmax]).
+                    - Ensure keys are exactly "box_2d", "org", and "res".`;
+
+                     requestBody = {
+                        contents: [
+                            {
+                                parts: [
+                                    { text: systemMessage }, // Combine system and user prompts
+                                    { text: userPrompt },
+                                    {
+                                        inline_data: {
+                                            mime_type: "image/png",
+                                            data: currentImageData.split(',')[1]
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        // Optional: Add generationConfig if needed for streaming
+                        // generationConfig: { ... }
+                    };
+                    this.log(`Using Google Gemini API (Streaming): ${requestEndpoint} (model: ${model})`);
+                } else {
+                     this.log(`Error: Unknown API Type "${apiType}"`);
+                     this.updateStatus('Error (Unknown API Type)');
+                     return;
+                }
 
                 this.updateStatus('Waiting Response');
 
-                // Open SSE connection for streaming
-                const eventSource = new EventSource(`${endpoint}?stream=true`);
-                eventSource.onopen = () => {
-                    this.log('SSE connection opened');
-                };
-
-                // Need to use fetch instead of EventSource for authentication
-                // and request body (EventSource doesn't support POST body)
-                this.streamTranslationRequest(endpoint, apiKey, requestData);
+                // Use the unified streaming request function
+                this.streamTranslationRequest(requestEndpoint, apiKey, requestBody, apiType);
             }
 
             // Stream translation request using fetch and ReadableStream
-            streamTranslationRequest(endpoint, apiKey, requestData) {
+            streamTranslationRequest(endpoint, apiKey, requestData, apiType) { // Added apiType parameter
                 fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        // Conditional Authorization header for OpenAI
+                        ...(apiType === 'openai' && { 'Authorization': `Bearer ${apiKey}` })
                     },
                     body: JSON.stringify(requestData)
                 })
@@ -1631,54 +1831,82 @@
 
                     const decoder = new TextDecoder('utf-8');
                     let buffer = ''; // Buffer for raw stream data
-                    let jsonlBuffer = ''; // Buffer for accumulated JSONL content
+                    let jsonlBuffer = ''; // Buffer for accumulated potential JSONL content
 
                     const reader = response.body.getReader();
                     const processChunk = ({ done, value }) => {
                         if (done) {
                             this.log('Stream complete');
                             // Process any remaining content in jsonlBuffer
-                            this.processAccumulatedJsonL(jsonlBuffer);
+                            this.processAccumulatedJsonL(jsonlBuffer); // Final processing
                             this.updateStatus(this.getDoneStatusMessage());
                             return;
                         }
 
                         // Decode the chunk and add to raw buffer
                         buffer += decoder.decode(value, { stream: true });
-                        this.log(`Received chunk, raw buffer length: ${buffer.length}`);
+                        // this.log(`Received chunk, raw buffer length: ${buffer.length}`); // Optional: very verbose
 
                         // Process complete SSE messages (lines) from the buffer
                         let newlineIndex;
-                        while ((newlineIndex = buffer.indexOf('\n')) >= 0) { // Look for actual newlines separating SSE messages
+                        while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
                             const line = buffer.substring(0, newlineIndex).trim();
                             buffer = buffer.substring(newlineIndex + 1); // Remove processed line from buffer
 
-                            if (line.length === 0) continue; // Skip empty lines
+                            if (line.length === 0 || line.startsWith(':')) continue; // Skip empty lines and comments
 
+                            // --- SSE Data Processing (Common structure for OpenAI/Gemini SSE) ---
                             if (line.startsWith('data: ')) {
                                 const jsonData = line.substring(5).trim();
-                                if (jsonData === '[DONE]') {
+                                if (jsonData === '[DONE]') { // OpenAI specific signal
                                     this.log('Received [DONE] signal.');
-                                    continue; // Skip the [DONE] signal
+                                    continue;
                                 }
                                 try {
                                     const chunkData = JSON.parse(jsonData);
-                                    if (chunkData.choices && chunkData.choices[0] && chunkData.choices[0].delta && chunkData.choices[0].delta.content) {
-                                        const content = chunkData.choices[0].delta.content;
-                                        jsonlBuffer += content; // Append content to JSONL buffer
+                                    let contentChunk = '';
+                                    let usage = null;
 
+                                    if (apiType === 'openai') {
+                                        // --- OpenAI Chunk Processing ---
+                                        if (chunkData.choices && chunkData.choices[0] && chunkData.choices[0].delta && chunkData.choices[0].delta.content) {
+                                            contentChunk = chunkData.choices[0].delta.content;
+                                        }
+                                        // Store usage if available (usually in the last chunk)
+                                        if (chunkData.usage) {
+                                            usage = chunkData.usage;
+                                            this.promptTokens = usage.prompt_tokens || this.promptTokens;
+                                            this.completionTokens = usage.completion_tokens || this.completionTokens;
+                                            this.totalTokens = usage.total_tokens || this.totalTokens;
+                                        }
+                                    } else if (apiType === 'gemini') {
+                                         // --- Gemini Chunk Processing ---
+                                         // Gemini streams text directly in candidates
+                                         if (chunkData.candidates && chunkData.candidates.length > 0 && chunkData.candidates[0].content && chunkData.candidates[0].content.parts && chunkData.candidates[0].content.parts.length > 0) {
+                                             const textPart = chunkData.candidates[0].content.parts.find(part => part.text);
+                                             if (textPart) {
+                                                 contentChunk = textPart.text;
+                                             }
+                                         }
+                                         // Gemini might send usageMetadata in the stream or only after completion
+                                         if (chunkData.usageMetadata) {
+                                            usage = chunkData.usageMetadata;
+                                            this.promptTokens = usage.promptTokenCount || this.promptTokens;
+                                            this.completionTokens = usage.candidatesTokenCount || this.completionTokens;
+                                            this.totalTokens = usage.totalTokenCount || this.totalTokens;
+                                        }
+                                    }
+
+                                    // If we got a content chunk, add it to the JSONL buffer and process
+                                    if (contentChunk) {
+                                        jsonlBuffer += contentChunk;
                                         // Process complete JSONL lines from the jsonlBuffer
                                         jsonlBuffer = this.processAccumulatedJsonL(jsonlBuffer);
                                     }
-                                    // Store token usage if available in the chunk (some APIs might send it incrementally or at the end)
-                                    if (chunkData.usage) {
-                                        this.promptTokens = chunkData.usage.prompt_tokens || this.promptTokens;
-                                        this.completionTokens = chunkData.usage.completion_tokens || this.completionTokens;
-                                        this.totalTokens = chunkData.usage.total_tokens || this.totalTokens;
-                                    }
 
                                 } catch (e) {
-                                    this.log(`Error parsing chunk JSON: "${jsonData}" - ${e.message}`);
+                                    // Ignore parsing errors for non-final chunks if necessary, or log them
+                                    this.log(`Warning: Error parsing intermediate chunk JSON: "${jsonData}" - ${e.message}`);
                                 }
                             } else {
                                 this.log(`Ignoring non-data line: ${line}`);
@@ -1693,7 +1921,7 @@
                 })
                 .catch(error => {
                     this.log(`Streaming error: ${error.message}`);
-                    this.updateStatus(`Error (API Call: ${error.message})`);
+                    this.updateStatus(`Error (API Stream Call: ${error.message.substring(0, 100)})`);
                 });
             }
 
