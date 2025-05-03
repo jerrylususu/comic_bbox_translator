@@ -563,15 +563,18 @@
                             <label class="form-label">Model:</label>
                             <input type="text" id="model-openai" class="form-input" value="gpt-4-vision-preview">
                         </div>
+                        <div class="form-row openai-field">
+                            <label class="form-label">API Key:</label>
+                            <input type="password" id="api-key-openai" class="form-input">
+                        </div>
                         <!-- Gemini Specific Fields -->
                         <div class="form-row gemini-field">
                              <label class="form-label">Model:</label>
                              <input type="text" id="model-gemini" class="form-input" value="gemini-1.5-flash-latest">
                         </div>
-                        <!-- Common Fields (API Key) -->
-                        <div class="form-row">
+                        <div class="form-row gemini-field">
                             <label class="form-label">API Key:</label>
-                            <input type="password" id="api-key" class="form-input">
+                            <input type="password" id="api-key-gemini" class="form-input">
                         </div>
                     </div>
                 </div>
@@ -657,7 +660,8 @@
                 this.endpointInput = document.getElementById('endpoint'); // OpenAI
                 this.modelOpenaiInput = document.getElementById('model-openai'); // OpenAI
                 this.modelGeminiInput = document.getElementById('model-gemini'); // Gemini
-                this.apiKeyInput = document.getElementById('api-key');
+                this.apiKeyOpenaiInput = document.getElementById('api-key-openai'); // New OpenAI Key
+                this.apiKeyGeminiInput = document.getElementById('api-key-gemini'); // New Gemini Key
                 this.showGridCheckbox = document.getElementById('show-grid');
                 this.manualSelectCheckbox = document.getElementById('manual-select');
                 this.translateButton = document.getElementById('translate-btn');
@@ -728,7 +732,8 @@
                 this.endpointInput.addEventListener('change', () => this.saveApiSettings());
                 this.modelOpenaiInput.addEventListener('change', () => this.saveApiSettings());
                 this.modelGeminiInput.addEventListener('change', () => this.saveApiSettings());
-                this.apiKeyInput.addEventListener('change', () => this.saveApiSettings());
+                this.apiKeyOpenaiInput.addEventListener('change', () => this.saveApiSettings());
+                this.apiKeyGeminiInput.addEventListener('change', () => this.saveApiSettings());
 
                 // Resize slider handler
                 this.resizeSlider.addEventListener('input', () => this.handleResizeSlider());
@@ -777,7 +782,8 @@
                 const savedEndpoint = localStorage.getItem('comicTranslator.endpoint');
                 const savedModelOpenai = localStorage.getItem('comicTranslator.modelOpenai');
                 const savedModelGemini = localStorage.getItem('comicTranslator.modelGemini');
-                const savedApiKey = localStorage.getItem('comicTranslator.apiKey');
+                const savedApiKeyOpenai = localStorage.getItem('comicTranslator.apiKeyOpenai');
+                const savedApiKeyGemini = localStorage.getItem('comicTranslator.apiKeyGemini');
 
                 if (savedApiType) {
                     this.apiType = savedApiType;
@@ -790,7 +796,8 @@
                 if (savedEndpoint) this.endpointInput.value = savedEndpoint;
                 if (savedModelOpenai) this.modelOpenaiInput.value = savedModelOpenai;
                 if (savedModelGemini) this.modelGeminiInput.value = savedModelGemini;
-                if (savedApiKey) this.apiKeyInput.value = savedApiKey;
+                if (savedApiKeyOpenai) this.apiKeyOpenaiInput.value = savedApiKeyOpenai;
+                if (savedApiKeyGemini) this.apiKeyGeminiInput.value = savedApiKeyGemini;
             }
 
             // Save API settings to localStorage
@@ -799,7 +806,8 @@
                 localStorage.setItem('comicTranslator.endpoint', this.endpointInput.value);
                 localStorage.setItem('comicTranslator.modelOpenai', this.modelOpenaiInput.value);
                 localStorage.setItem('comicTranslator.modelGemini', this.modelGeminiInput.value);
-                localStorage.setItem('comicTranslator.apiKey', this.apiKeyInput.value);
+                localStorage.setItem('comicTranslator.apiKeyOpenai', this.apiKeyOpenaiInput.value);
+                localStorage.setItem('comicTranslator.apiKeyGemini', this.apiKeyGeminiInput.value);
             }
 
             // Load theme preference from localStorage
@@ -1436,13 +1444,27 @@
                 }
 
                 // Get common API settings
-                const apiKey = this.apiKeyInput.value;
                 const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this image.';
                 const apiType = this.apiType; // Use the stored apiType
+                let apiKeyToUse = ''; // Variable to hold the correct API key
 
-                if (!apiKey) {
-                    this.log('Error: API Key is required');
-                    this.updateStatus('Error (No API Key)');
+                if (apiType === 'openai') {
+                    apiKeyToUse = this.apiKeyOpenaiInput.value; // Use OpenAI Key
+                    if (!apiKeyToUse) {
+                        this.log('Error: OpenAI API Key is required');
+                        this.updateStatus('Error (No OpenAI Key)');
+                        return;
+                    }
+                } else if (apiType === 'gemini') {
+                    apiKeyToUse = this.apiKeyGeminiInput.value; // Use Gemini Key
+                    if (!apiKeyToUse) {
+                        this.log('Error: Gemini API Key is required');
+                        this.updateStatus('Error (No Gemini Key)');
+                        return;
+                    }
+                } else {
+                    this.log(`Error: Unknown API Type "${apiType}"`);
+                    this.updateStatus('Error (Unknown API Type)');
                     return;
                 }
 
@@ -1485,7 +1507,7 @@
                     // --- Gemini Request ---
                     const model = this.modelGeminiInput.value;
                     // Construct Gemini endpoint
-                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyToUse}`;
                     
                     systemPrompt = `You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
                             Format your response strictly as a single JSON object with keys "org" and "res":
@@ -1515,10 +1537,6 @@
                         // }
                     };
                     this.log(`Using Google Gemini API: ${requestEndpoint} (model: ${model})`);
-                } else {
-                     this.log(`Error: Unknown API Type "${apiType}"`);
-                     this.updateStatus('Error (Unknown API Type)');
-                     return;
                 }
 
                 this.updateStatus('Waiting Response');
@@ -1529,7 +1547,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                          // OpenAI uses Bearer token, Gemini uses key in URL (usually)
-                         ...(apiType === 'openai' && { 'Authorization': `Bearer ${apiKey}` })
+                         ...(apiType === 'openai' && { 'Authorization': `Bearer ${apiKeyToUse}` })
                     },
                     body: JSON.stringify(requestBody)
                 })
@@ -1691,13 +1709,27 @@
                 this.clearSelection();
 
                 // Get common API settings
-                const apiKey = this.apiKeyInput.value;
                 const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this comic to Simplified Chinese.';
                 const apiType = this.apiType; // Use the stored apiType
+                let apiKeyToUse = ''; // Variable to hold the correct API key
 
-                if (!apiKey) {
-                    this.log('Error: API Key is required');
-                    this.updateStatus('Error (No API Key)');
+                if (apiType === 'openai') {
+                    apiKeyToUse = this.apiKeyOpenaiInput.value; // Use OpenAI Key
+                    if (!apiKeyToUse) {
+                        this.log('Error: OpenAI API Key is required');
+                        this.updateStatus('Error (No OpenAI Key)');
+                        return;
+                    }
+                } else if (apiType === 'gemini') {
+                    apiKeyToUse = this.apiKeyGeminiInput.value; // Use Gemini Key
+                    if (!apiKeyToUse) {
+                        this.log('Error: Gemini API Key is required');
+                        this.updateStatus('Error (No Gemini Key)');
+                        return;
+                    }
+                } else {
+                    this.log(`Error: Unknown API Type "${apiType}"`);
+                    this.updateStatus('Error (Unknown API Type)');
                     return;
                 }
 
@@ -1757,7 +1789,13 @@
                      // --- Gemini Request ---
                      const model = this.modelGeminiInput.value;
                     // Construct Gemini *streaming* endpoint
-                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`; // Use alt=sse for EventSource compatibility
+                    apiKeyToUse = this.apiKeyGeminiInput.value; // Use Gemini Key
+                    if (!apiKeyToUse) {
+                        this.log('Error: Gemini API Key is required');
+                        this.updateStatus('Error (No Gemini Key)');
+                        return;
+                    }
+                    requestEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKeyToUse}&alt=sse`; // Use alt=sse for EventSource compatibility
 
                      systemMessage = `You are a comic translator. Analyze the image to:
                     1. Find text in speech bubbles or captions
@@ -1803,7 +1841,7 @@
                 this.updateStatus('Waiting Response');
 
                 // Use the unified streaming request function
-                this.streamTranslationRequest(requestEndpoint, apiKey, requestBody, apiType);
+                this.streamTranslationRequest(requestEndpoint, apiKeyToUse, requestBody, apiType);
             }
 
             // Stream translation request using fetch and ReadableStream
