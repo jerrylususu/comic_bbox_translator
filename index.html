@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comic Box Translator - Web Version</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #e74c3c;
+            --background-color: #f5f5f5;
+            --card-background: #ffffff;
+            --border-color: #ddd;
+            --text-color: #333;
+            --highlight-color: #2980b9;
+            --box-color: red;
+            --selected-box-color: blue;
+            --grid-color: rgba(255, 0, 0, 0.7);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--card-background);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .app-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .image-section {
+            flex: 7;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid var(--border-color);
+            background-color: #fafafa;
+        }
+
+        .right-section {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 300px;
+            max-width: 500px;
+        }
+
+        #image-container {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+            background-color: #f0f0f0;
+            cursor: crosshair;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+        }
+
+        .panel {
+            background-color: var(--card-background);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            margin: 10px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .panel-content {
+            padding: 10px;
+        }
+
+        .api-settings {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .api-settings.visible {
+            display: block;
+        }
+
+        .form-row {
+            display: flex;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .form-label {
+            width: 100px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 6px 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--highlight-color);
+        }
+
+        button.secondary {
+            background-color: #95a5a6;
+        }
+
+        button.secondary:hover {
+            background-color: #7f8c8d;
+        }
+
+        button.danger {
+            background-color: var(--secondary-color);
+        }
+
+        button.danger:hover {
+            background-color: #c0392b;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .status-info {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-label {
+            font-weight: bold;
+        }
+
+        .prompt-container {
+            flex: 0 0 auto;
+        }
+
+        #user-prompt {
+            width: 100%;
+            height: 80px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            resize: vertical;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+        }
+
+        .selected-region {
+            flex: 0 0 auto;
+        }
+
+        .log-container {
+            flex: 1;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #log {
+            flex: 1;
+            overflow-y: auto;
+            background-color: #2d2d2d;
+            color: #f0f0f0;
+            font-family: monospace;
+            padding: 8px;
+            font-size: 12px;
+            border: none;
+            resize: none;
+        }
+
+        .results-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .result-card {
+            background-color: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .result-card:hover {
+            border-color: var(--primary-color);
+        }
+
+        .result-card.selected {
+            border-color: var(--selected-box-color);
+            border-width: 2px;
+        }
+
+        .result-card-header {
+            padding: 8px 10px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .result-card-content {
+            padding: 10px;
+        }
+
+        .result-text-row {
+            margin-bottom: 8px;
+        }
+
+        .result-text-label {
+            font-weight: bold;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .result-text {
+            font-size: 14px;
+            word-break: break-word;
+            line-height: 1.4;
+        }
+
+        .selected-text-row {
+            margin-bottom: 8px;
+        }
+
+        .selected-text-label {
+            font-weight: bold;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .selected-text {
+            font-size: 14px;
+            word-break: break-word;
+            line-height: 1.4;
+        }
+
+        .toggle-btn {
+            background: none;
+            color: var(--primary-color);
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            font-size: 14px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toggle-btn:hover {
+            color: var(--highlight-color);
+            background: none;
+        }
+
+        #drop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+            font-size: 24px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #drop-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .drop-message {
+            padding: 30px;
+            background-color: rgba(52, 152, 219, 0.8);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .image-section, .right-section {
+                flex: none;
+                height: 50vh;
+                max-width: none;
+            }
+
+            .status-info {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Drop Overlay -->
+    <div id="drop-overlay">
+        <div class="drop-message">
+            <div>Drop your image here</div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="app-title">Comic Box Translator</div>
+        <div class="header-controls">
+            <div class="checkbox-label">
+                <input type="checkbox" id="show-grid">
+                <span>Show Grid</span>
+            </div>
+            <div class="checkbox-label">
+                <input type="checkbox" id="manual-select">
+                <span>Enable Manual Selection</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="reset-btn" class="secondary">Reset</button>
+            <button id="open-btn">Open Image</button>
+            <button id="translate-btn">Translate Full Image</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Image Section -->
+        <div class="image-section">
+            <div id="image-container">
+                <canvas id="canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Section -->
+        <div class="right-section">
+            <!-- API Settings -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>API Settings</span>
+                    <button class="toggle-btn" id="toggle-api">▼</button>
+                </div>
+                <div class="panel-content">
+                    <div class="api-settings" id="api-settings">
+                        <div class="form-row">
+                            <label class="form-label">Endpoint:</label>
+                            <input type="text" id="endpoint" class="form-input" value="https://api.openai.com/v1/chat/completions">
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">Model:</label>
+                            <input type="text" id="model" class="form-input" value="gpt-4-vision-preview">
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label">API Key:</label>
+                            <input type="password" id="api-key" class="form-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Prompt -->
+            <div class="panel prompt-container">
+                <div class="panel-header">
+                    <span>User Prompt (Optional Context)</span>
+                </div>
+                <div class="panel-content">
+                    <textarea id="user-prompt">Translate the text in this comic image to Simplified Chinese. Provide context if helpful.</textarea>
+                </div>
+            </div>
+
+            <!-- Status Info -->
+            <div class="panel">
+                <div class="panel-content status-info">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span id="status">Not Started</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected Region -->
+            <div class="panel selected-region">
+                <div class="panel-header">
+                    <span>Selected Region</span>
+                </div>
+                <div class="panel-content">
+                    <div class="selected-text-row">
+                        <span class="selected-text-label">Original:</span>
+                        <div id="selected-original" class="selected-text"></div>
+                    </div>
+                    <div class="selected-text-row">
+                        <span class="selected-text-label">Translated:</span>
+                        <div id="selected-translated" class="selected-text"></div>
+                    </div>
+                    <div class="selected-text-row">
+                        <span class="selected-text-label">Box Info:</span>
+                        <div id="selected-box-info" class="selected-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="panel results-container">
+                <div class="panel-header">
+                    <span>Results</span>
+                </div>
+                <div id="results"></div>
+            </div>
+
+            <!-- Log -->
+            <div class="panel log-container">
+                <div class="panel-header">
+                    <span>Log</span>
+                </div>
+                <textarea id="log" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Main Application Class
+        class ComicTranslator {
+            constructor() {
+                // DOM elements
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.imageContainer = document.getElementById('image-container');
+                this.logElement = document.getElementById('log');
+                this.statusElement = document.getElementById('status');
+                this.resultsContainer = document.getElementById('results');
+                this.selectedOriginal = document.getElementById('selected-original');
+                this.selectedTranslated = document.getElementById('selected-translated');
+                this.selectedBoxInfo = document.getElementById('selected-box-info');
+                this.userPromptElement = document.getElementById('user-prompt');
+                this.toggleApiButton = document.getElementById('toggle-api');
+                this.apiSettingsElement = document.getElementById('api-settings');
+                this.endpointInput = document.getElementById('endpoint');
+                this.modelInput = document.getElementById('model');
+                this.apiKeyInput = document.getElementById('api-key');
+                this.showGridCheckbox = document.getElementById('show-grid');
+                this.manualSelectCheckbox = document.getElementById('manual-select');
+                this.translateButton = document.getElementById('translate-btn');
+                this.resetButton = document.getElementById('reset-btn');
+                this.openButton = document.getElementById('open-btn');
+                this.dropOverlay = document.getElementById('drop-overlay');
+
+                // State variables
+                this.originalImage = null;
+                this.displayedImage = null;
+                this.imageData = null;
+                this.translations = [];
+                this.selectedIndex = -1;
+                this.showGrid = false;
+                this.gridSize = 100;
+                this.manualSelectEnabled = false;
+                this.selectionStart = null;
+                this.selectionEnd = null;
+                this.isSelecting = false;
+                this.status = 'Not Started';
+                this.timerStartTime = null;
+                this.timerInterval = null;
+                this.baseStatus = '';
+                this.promptTokens = 0;
+                this.completionTokens = 0;
+                this.totalTokens = 0;
+
+                // Load API key from localStorage if available
+                this.loadApiSettings();
+
+                // Initialize
+                this.initEventListeners();
+                this.log('Comic Translator initialized. Ready to load image.');
+            }
+
+            // Initialize all event listeners
+            initEventListeners() {
+                // Button click handlers
+                this.translateButton.addEventListener('click', () => this.startTranslation());
+                this.resetButton.addEventListener('click', () => this.resetState());
+                this.openButton.addEventListener('click', () => this.openImageFile());
+                this.toggleApiButton.addEventListener('click', () => this.toggleApiSettings());
+
+                // Checkbox change handlers
+                this.showGridCheckbox.addEventListener('change', () => {
+                    this.showGrid = this.showGridCheckbox.checked;
+                    this.refreshDisplay();
+                });
+                this.manualSelectCheckbox.addEventListener('change', () => {
+                    this.manualSelectEnabled = this.manualSelectCheckbox.checked;
+                });
+
+                // Canvas event handlers for selection
+                this.canvas.addEventListener('mousedown', (e) => this.onManualSelectStart(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onManualSelectDrag(e));
+                this.canvas.addEventListener('mouseup', (e) => this.onManualSelectEnd(e));
+
+                // API settings change handlers
+                this.endpointInput.addEventListener('change', () => this.saveApiSettings());
+                this.modelInput.addEventListener('change', () => this.saveApiSettings());
+                this.apiKeyInput.addEventListener('change', () => this.saveApiSettings());
+
+                // Clipboard paste handler
+                document.addEventListener('paste', (e) => this.handlePaste(e));
+
+                // File drag and drop handlers
+                document.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.dropOverlay.classList.add('active');
+                });
+                document.addEventListener('dragleave', (e) => {
+                    if (e.relatedTarget === null || e.relatedTarget.id === 'drop-overlay') {
+                        this.dropOverlay.classList.remove('active');
+                    }
+                });
+                document.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dropOverlay.classList.remove('active');
+                    if (e.dataTransfer.files.length) {
+                        this.handleFileSelect(e.dataTransfer.files);
+                    }
+                });
+
+                // Window resize handler
+                window.addEventListener('resize', () => this.handleResize());
+            }
+
+            // Load API settings from localStorage
+            loadApiSettings() {
+                const savedEndpoint = localStorage.getItem('comicTranslator.endpoint');
+                const savedModel = localStorage.getItem('comicTranslator.model');
+                const savedApiKey = localStorage.getItem('comicTranslator.apiKey');
+
+                if (savedEndpoint) this.endpointInput.value = savedEndpoint;
+                if (savedModel) this.modelInput.value = savedModel;
+                if (savedApiKey) this.apiKeyInput.value = savedApiKey;
+            }
+
+            // Save API settings to localStorage
+            saveApiSettings() {
+                localStorage.setItem('comicTranslator.endpoint', this.endpointInput.value);
+                localStorage.setItem('comicTranslator.model', this.modelInput.value);
+                localStorage.setItem('comicTranslator.apiKey', this.apiKeyInput.value);
+            }
+
+            // Toggle API settings panel visibility
+            toggleApiSettings() {
+                const isVisible = this.apiSettingsElement.classList.toggle('visible');
+                this.toggleApiButton.textContent = isVisible ? '▲' : '▼';
+            }
+
+            // Log message to the log textarea
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.logElement.value += `[${timestamp}] ${message}\n`;
+                this.logElement.scrollTop = this.logElement.scrollHeight;
+            }
+
+            // Update status display
+            updateStatus(status) {
+                this.status = status;
+
+                // Stop existing timer if any
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                    this.timerStartTime = null;
+                }
+
+                if (status === 'Waiting Response' || status === 'Streaming Response') {
+                    this.baseStatus = status;
+                    this.timerStartTime = Date.now();
+                    this.updateTimerDisplay();
+                    this.timerInterval = setInterval(() => this.updateTimerDisplay(), 1000);
+                } else {
+                    this.baseStatus = status;
+                    this.statusElement.textContent = status;
+                }
+            }
+
+            // Update timer display for ongoing operations
+            updateTimerDisplay() {
+                if (this.timerStartTime) {
+                    const elapsed = Math.floor((Date.now() - this.timerStartTime) / 1000);
+                    this.statusElement.textContent = `${this.baseStatus} (${elapsed}s)`;
+                } else {
+                    this.statusElement.textContent = this.baseStatus;
+                }
+            }
+
+            // Display "Done" status message with token counts if available
+            getDoneStatusMessage() {
+                if (this.promptTokens > 0 || this.completionTokens > 0) {
+                    return `Done (In=${this.promptTokens}, Out=${this.completionTokens}, Total=${this.totalTokens})`;
+                } else {
+                    return 'Done';
+                }
+            }
+
+            // Reset application state
+            resetState() {
+                this.log('Resetting application state...');
+
+                // Clear translations
+                this.translations = [];
+
+                // Clear result cards
+                this.resultsContainer.innerHTML = '';
+
+                // Clear selected region
+                this.clearSelection();
+
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Reset token counts
+                this.promptTokens = 0;
+                this.completionTokens = 0;
+                this.totalTokens = 0;
+
+                // Reset status
+                this.updateStatus('Not Started');
+
+                this.log('State reset complete.');
+            }
+
+            // Clear selection display
+            clearSelection() {
+                this.selectedIndex = -1;
+                this.selectedOriginal.textContent = '';
+                this.selectedTranslated.textContent = '';
+                this.selectedBoxInfo.textContent = '';
+
+                // Redraw boxes to clear highlights
+                this.drawBoundingBoxes();
+            }
+
+            // Handle window resize to adjust canvas and elements
+            handleResize() {
+                if (this.originalImage) {
+                    this.refreshDisplay();
+                }
+            }
+
+            // Open image file dialog
+            openImageFile() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => {
+                    if (e.target.files.length) {
+                        this.handleFileSelect(e.target.files);
+                    }
+                };
+                input.click();
+            }
+
+            // Handle file selection (from dialog or drop)
+            handleFileSelect(files) {
+                const file = files[0];
+                if (!file.type.startsWith('image/')) {
+                    this.log('Selected file is not an image.');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const image = new Image();
+                    image.onload = () => {
+                        this.originalImage = image;
+                        this.displayImage();
+                        this.log(`Image loaded from file: ${file.name}`);
+                    };
+                    image.src = e.target.result;
+                    this.imageData = e.target.result; // Store base64 image data
+                };
+                reader.onerror = () => {
+                    this.log('Error reading file.');
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // Handle paste from clipboard
+            handlePaste(e) {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                let foundImage = false;
+
+                for (const item of items) {
+                    if (item.type.indexOf('image') === 0) {
+                        const blob = item.getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const image = new Image();
+                            image.onload = () => {
+                                this.originalImage = image;
+                                this.displayImage();
+                                this.log('Image pasted from clipboard.');
+                            };
+                            image.src = e.target.result;
+                            this.imageData = e.target.result; // Store base64 image data
+                        };
+                        reader.readAsDataURL(blob);
+                        foundImage = true;
+                        break;
+                    }
+                }
+
+                if (!foundImage) {
+                    this.log('No image found in clipboard.');
+                }
+            }
+
+            // Display image on canvas
+            displayImage() {
+                if (!this.originalImage) return;
+
+                // Resize canvas to fit image
+                this.canvas.width = this.originalImage.width;
+                this.canvas.height = this.originalImage.height;
+
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw image
+                this.ctx.drawImage(this.originalImage, 0, 0);
+
+                // Add grid if enabled
+                if (this.showGrid) {
+                    this.addGridToCanvas();
+                }
+
+                // Clear translations and selection
+                this.translations = [];
+                this.clearSelection();
+                this.resultsContainer.innerHTML = '';
+
+                // Set image container scroll area
+                this.imageContainer.scrollTop = 0;
+                this.imageContainer.scrollLeft = 0;
+            }
+
+            // Refresh display (e.g., after toggling grid)
+            refreshDisplay() {
+                if (!this.originalImage) return;
+
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw image
+                this.ctx.drawImage(this.originalImage, 0, 0);
+
+                // Add grid if enabled
+                if (this.showGrid) {
+                    this.addGridToCanvas();
+                }
+
+                // Redraw bounding boxes
+                this.drawBoundingBoxes();
+            }
+
+            // Add grid to canvas
+            addGridToCanvas() {
+                const width = this.canvas.width;
+                const height = this.canvas.height;
+
+                this.ctx.save();
+                this.ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-color');
+                this.ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-color');
+                this.ctx.lineWidth = 1;
+                this.ctx.font = '10px Arial';
+
+                // Draw vertical lines
+                for (let x = 0; x < width; x += this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, height);
+                    this.ctx.stroke();
+
+                    // Add coordinate labels
+                    this.ctx.fillText(x.toString(), x + 2, 12); // Top
+                    this.ctx.fillText(x.toString(), x + 2, height - 5); // Bottom
+                }
+
+                // Draw horizontal lines
+                for (let y = 0; y < height; y += this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(width, y);
+                    this.ctx.stroke();
+
+                    // Add coordinate labels
+                    this.ctx.fillText(y.toString(), 2, y + 12); // Left
+                    this.ctx.fillText(y.toString(), width - 25, y + 12); // Right
+                }
+
+                this.ctx.restore();
+            }
+
+            // Draw all bounding boxes on canvas
+            drawBoundingBoxes() {
+                if (!this.originalImage) return;
+
+                const imgWidth = this.originalImage.width;
+                const imgHeight = this.originalImage.height;
+
+                this.ctx.save();
+                this.ctx.lineWidth = 2;
+
+                // Draw each translation box
+                for (let i = 0; i < this.translations.length; i++) {
+                    const item = this.translations[i];
+                    const bbox = item.boundingBox;
+
+                    if (bbox.length === 4) {
+                        // Parse coordinates [ymin, xmin, ymax, xmax]
+                        const [ymin, xmin, ymax, xmax] = bbox;
+
+                        // Convert from normalized coordinates to actual pixels
+                        const x1 = Math.floor(xmin * imgWidth / 1000);
+                        const y1 = Math.floor(ymin * imgHeight / 1000);
+                        const x2 = Math.floor(xmax * imgWidth / 1000);
+                        const y2 = Math.floor(ymax * imgHeight / 1000);
+
+                        // Set box color (highlight selected)
+                        if (i === this.selectedIndex) {
+                            this.ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--selected-box-color');
+                        } else {
+                            this.ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--box-color');
+                        }
+
+                        // Draw the box
+                        this.ctx.beginPath();
+                        this.ctx.rect(x1, y1, x2 - x1, y2 - y1);
+                        this.ctx.stroke();
+
+                        // Add box number for reference
+                        this.ctx.fillStyle = this.ctx.strokeStyle;
+                        this.ctx.fillRect(x1, y1, 20, 16);
+                        this.ctx.fillStyle = '#fff';
+                        this.ctx.font = 'bold 12px Arial';
+                        this.ctx.fillText((i + 1).toString(), x1 + 4, y1 + 12);
+                    }
+                }
+
+                this.ctx.restore();
+            }
+
+            // Handle manual selection start
+            onManualSelectStart(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                this.selectionStart = { x, y };
+                this.selectionEnd = null;
+                this.isSelecting = true;
+            }
+
+            // Handle manual selection dragging
+            onManualSelectDrag(e) {
+                if (!this.isSelecting) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                this.selectionEnd = { x, y };
+
+                // Redraw to show selection rectangle
+                this.refreshDisplay();
+
+                if (this.manualSelectEnabled && this.selectionStart && this.selectionEnd) {
+                    this.ctx.save();
+                    this.ctx.strokeStyle = 'green';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+
+                    const x1 = this.selectionStart.x;
+                    const y1 = this.selectionStart.y;
+                    const x2 = this.selectionEnd.x;
+                    const y2 = this.selectionEnd.y;
+
+                    this.ctx.beginPath();
+                    this.ctx.rect(
+                        Math.min(x1, x2),
+                        Math.min(y1, y2),
+                        Math.abs(x2 - x1),
+                        Math.abs(y2 - y1)
+                    );
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+            }
+
+            // Handle manual selection end
+            onManualSelectEnd(e) {
+                if (!this.isSelecting) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                this.selectionEnd = { x, y };
+                this.isSelecting = false;
+
+                // Handle as click or selection
+                if (this.manualSelectEnabled && this.selectionStart && this.selectionEnd) {
+                    const distX = Math.abs(this.selectionStart.x - this.selectionEnd.x);
+                    const distY = Math.abs(this.selectionStart.y - this.selectionEnd.y);
+
+                    if (distX > 10 && distY > 10) {
+                        // It's a real selection, not just a click
+                        const x1 = Math.min(this.selectionStart.x, this.selectionEnd.x);
+                        const y1 = Math.min(this.selectionStart.y, this.selectionEnd.y);
+                        const x2 = Math.max(this.selectionStart.x, this.selectionEnd.x);
+                        const y2 = Math.max(this.selectionStart.y, this.selectionEnd.y);
+
+                        this.translateManualSelection(x1, y1, x2, y2);
+                    } else {
+                        // It's a click - check if it's inside a box
+                        this.handleCanvasClick(x, y);
+                    }
+                } else {
+                    // Manual selection not enabled, treat as click
+                    this.handleCanvasClick(x, y);
+                }
+
+                // Clear selection state
+                this.refreshDisplay();
+            }
+
+            // Handle canvas click to select boxes
+            handleCanvasClick(x, y) {
+                if (!this.originalImage) return;
+
+                const imgWidth = this.originalImage.width;
+                const imgHeight = this.originalImage.height;
+
+                // Check if click is inside any box
+                let clickedIdx = -1;
+                for (let i = 0; i < this.translations.length; i++) {
+                    const item = this.translations[i];
+                    const bbox = item.boundingBox;
+
+                    if (bbox.length === 4) {
+                        // Parse coordinates [ymin, xmin, ymax, xmax]
+                        const [ymin, xmin, ymax, xmax] = bbox;
+
+                        // Convert from normalized coordinates to actual pixels
+                        const x1 = Math.floor(xmin * imgWidth / 1000);
+                        const y1 = Math.floor(ymin * imgHeight / 1000);
+                        const x2 = Math.floor(xmax * imgWidth / 1000);
+                        const y2 = Math.floor(ymax * imgHeight / 1000);
+
+                        // Check if click is inside box
+                        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
+                            clickedIdx = i;
+                            break; // Found topmost box
+                        }
+                    }
+                }
+
+                if (clickedIdx !== -1) {
+                    this.selectTranslation(clickedIdx);
+                } else {
+                    this.clearSelection();
+                }
+            }
+
+            // Select a translation by index
+            selectTranslation(index) {
+                if (index >= 0 && index < this.translations.length) {
+                    this.selectedIndex = index;
+                    const item = this.translations[index];
+
+                    // Update selected region display
+                    this.selectedOriginal.textContent = item.originalText;
+                    this.selectedTranslated.textContent = item.translatedText;
+                    this.selectedBoxInfo.textContent = `Box ${index + 1}: ${JSON.stringify(item.boundingBox)}`;
+
+                    // Highlight the card
+                    const cards = this.resultsContainer.querySelectorAll('.result-card');
+                    cards.forEach((card, i) => {
+                        if (i === index) {
+                            card.classList.add('selected');
+                            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        } else {
+                            card.classList.remove('selected');
+                        }
+                    });
+
+                    // Redraw boxes to highlight selected
+                    this.drawBoundingBoxes();
+                }
+            }
+
+            // Create canvas with a portion of the original image for manual selection
+            cropImageForSelection(x1, y1, x2, y2) {
+                if (!this.originalImage) return null;
+
+                // Create a temporary canvas for cropping
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+
+                // Set canvas size to selection size
+                tempCanvas.width = x2 - x1;
+                tempCanvas.height = y2 - y1;
+
+                // Draw selected portion of image to temp canvas
+                tempCtx.drawImage(
+                    this.originalImage,
+                    x1, y1, x2 - x1, y2 - y1,
+                    0, 0, x2 - x1, y2 - y1
+                );
+
+                // Return as data URL
+                return tempCanvas.toDataURL('image/png');
+            }
+
+            // Translate manually selected region
+            translateManualSelection(x1, y1, x2, y2) {
+                if (!this.originalImage) {
+                    this.log('Error: No image loaded');
+                    return;
+                }
+
+                this.log(`Manual selection: (${x1}, ${y1}) to (${x2}, ${y2})`);
+                this.updateStatus('Sent (Manual)');
+
+                // Crop image to selection
+                const croppedImageData = this.cropImageForSelection(x1, y1, x2, y2);
+                if (!croppedImageData) {
+                    this.log('Error: Failed to crop image');
+                    return;
+                }
+
+                // Get API settings
+                const endpoint = this.endpointInput.value;
+                const model = this.modelInput.value;
+                const apiKey = this.apiKeyInput.value;
+
+                if (!apiKey) {
+                    this.log('Error: API Key is required');
+                    this.updateStatus('Error (No API Key)');
+                    return;
+                }
+
+                // Get user prompt
+                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this image.';
+
+                // Prepare request data
+                const requestData = {
+                    model: model,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a text translator. Analyze the provided image snippet and translate any text you find into Chinese (Simplified).
+                            Format your response as a single JSON object:
+                            {"org": "Original text found", "res": "Translated Chinese text"}
+                            
+                            If no text is found, return:
+                            {"org": "", "res": ""}`
+                        },
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: userPrompt },
+                                {
+                                    type: 'image_url',
+                                    image_url: {
+                                        url: croppedImageData
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                };
+
+                this.updateStatus('Waiting Response');
+
+                // Make API request
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.updateStatus('Processing Response');
+                    this.log('Manual translation response received');
+
+                    // Extract usage data if available
+                    if (data.usage) {
+                        this.promptTokens = data.usage.prompt_tokens;
+                        this.completionTokens = data.usage.completion_tokens;
+                        this.totalTokens = data.usage.total_tokens;
+                    }
+
+                    // Extract and process response
+                    if (data.choices && data.choices.length > 0) {
+                        const content = data.choices[0].message.content;
+                        this.log(`Response content: ${content}`);
+
+                        try {
+                            // Clean up and parse the response
+                            let cleanedContent = content.trim();
+                            // Remove markdown code blocks if present
+                            if (cleanedContent.startsWith('```json')) {
+                                cleanedContent = cleanedContent.substring(7);
+                            }
+                            if (cleanedContent.startsWith('```')) {
+                                cleanedContent = cleanedContent.substring(3);
+                            }
+                            if (cleanedContent.endsWith('```')) {
+                                cleanedContent = cleanedContent.substring(0, cleanedContent.length - 3);
+                            }
+                            
+                            cleanedContent = cleanedContent.trim();
+                            
+                            const result = JSON.parse(cleanedContent);
+                            const originalText = result.org || '';
+                            const translatedText = result.res || '';
+
+                            if (!originalText && !translatedText) {
+                                this.log('No text found in the selection');
+                                this.updateStatus('Done (Manual - No Text)');
+                                return;
+                            }
+
+                            // Calculate normalized bounding box coordinates
+                            const imgWidth = this.originalImage.width;
+                            const imgHeight = this.originalImage.height;
+
+                            // Normalize coordinates [ymin, xmin, ymax, xmax]
+                            const normYmin = Math.floor(y1 * 1000 / imgHeight);
+                            const normXmin = Math.floor(x1 * 1000 / imgWidth);
+                            const normYmax = Math.floor(y2 * 1000 / imgHeight);
+                            const normXmax = Math.floor(x2 * 1000 / imgWidth);
+                            const boundingBox = [normYmin, normXmin, normYmax, normXmax];
+
+                            // Add to translations
+                            const newTranslation = {
+                                boundingBox: boundingBox,
+                                originalText: originalText,
+                                translatedText: translatedText
+                            };
+
+                            this.translations.push(newTranslation);
+                            const newIndex = this.translations.length - 1;
+
+                            // Add result card
+                            this.addResultCard(newIndex);
+
+                            // Update display
+                            this.drawBoundingBoxes();
+                            this.selectTranslation(newIndex);
+
+                            // Update status
+                            const doneStatus = this.getDoneStatusMessage().replace('Done', 'Done (Manual)');
+                            this.updateStatus(doneStatus);
+                        } catch (e) {
+                            this.log(`Error parsing response: ${e.message}`);
+                            this.updateStatus('Error (Manual - Invalid Response)');
+                        }
+                    } else {
+                        this.log('Invalid or empty response from API');
+                        this.updateStatus('Error (Manual - Empty Response)');
+                    }
+                })
+                .catch(error => {
+                    this.log(`API request error: ${error.message}`);
+                    this.updateStatus('Error (Manual API Call)');
+                });
+            }
+
+            // Start full image translation
+            startTranslation() {
+                if (!this.originalImage) {
+                    this.log('No image to translate');
+                    return;
+                }
+
+                this.updateStatus('Sent');
+
+                // Clear previous results
+                this.translations = [];
+                this.resultsContainer.innerHTML = '';
+                this.clearSelection();
+
+                // Get API settings
+                const endpoint = this.endpointInput.value;
+                const model = this.modelInput.value;
+                const apiKey = this.apiKeyInput.value;
+
+                if (!apiKey) {
+                    this.log('Error: API Key is required');
+                    this.updateStatus('Error (No API Key)');
+                    return;
+                }
+
+                // Get user prompt
+                const userPrompt = this.userPromptElement.value.trim() || 'Translate the text in this comic to Simplified Chinese.';
+
+                // Prepare system message
+                const systemMessage = `You are a comic translator. Analyze the image to:
+                1. Find text in speech bubbles or captions
+                2. Return the original text
+                3. Translate it to Chinese (Simplified)
+                4. Return the bounding box coordinates for each text segment
+                
+                Format your response as JSONL (JSON Lines) where each text bubble is a separate JSON object on a new line:
+                (coordinates are normalized to 1000 and in the format [ymin, xmin, ymax, xmax] where the top left corner is the zero point and has position 0,0)
+                {"box_2d": [ymin, xmin, ymax, xmax], "org": "Original text", "res": "Translated text"}
+                ...
+                
+                This format allows each text bubble to be processed as soon as it's identified.
+                
+                Important: Always normalize the bounding box coordinates to a range of 0 to 1000, where 0,0 is the top-left corner
+                and 1000,1000 is the bottom-right corner of the image. The bounding box coordinates MUST be in the order:
+                [ymin, xmin, ymax, xmax]. Make sure the keys are exactly "box_2d", "org", and "res".`;
+
+                // Prepare request data
+                const requestData = {
+                    model: model,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: systemMessage
+                        },
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: userPrompt },
+                                {
+                                    type: 'image_url',
+                                    image_url: {
+                                        url: this.imageData
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    stream: true
+                };
+
+                this.updateStatus('Waiting Response');
+
+                // Open SSE connection for streaming
+                const eventSource = new EventSource(`${endpoint}?stream=true`);
+                eventSource.onopen = () => {
+                    this.log('SSE connection opened');
+                };
+
+                // Need to use fetch instead of EventSource for authentication
+                // and request body (EventSource doesn't support POST body)
+                this.streamTranslationRequest(endpoint, apiKey, requestData);
+            }
+
+            // Stream translation request using fetch and ReadableStream
+            streamTranslationRequest(endpoint, apiKey, requestData) {
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(`API request failed: ${response.status} ${response.statusText} - ${text}`);
+                        });
+                    }
+                    if (!response.body) {
+                        throw new Error('ReadableStream not supported');
+                    }
+
+                    this.updateStatus('Streaming Response');
+
+                    const decoder = new TextDecoder('utf-8');
+                    let buffer = ''; // Buffer for raw stream data
+                    let jsonlBuffer = ''; // Buffer for accumulated JSONL content
+
+                    const reader = response.body.getReader();
+                    const processChunk = ({ done, value }) => {
+                        if (done) {
+                            this.log('Stream complete');
+                            // Process any remaining content in jsonlBuffer
+                            this.processAccumulatedJsonL(jsonlBuffer);
+                            this.updateStatus(this.getDoneStatusMessage());
+                            return;
+                        }
+
+                        // Decode the chunk and add to raw buffer
+                        buffer += decoder.decode(value, { stream: true });
+                        this.log(`Received chunk, raw buffer length: ${buffer.length}`);
+
+                        // Process complete SSE messages (lines) from the buffer
+                        let newlineIndex;
+                        while ((newlineIndex = buffer.indexOf('\n')) >= 0) { // Look for actual newlines separating SSE messages
+                            const line = buffer.substring(0, newlineIndex).trim();
+                            buffer = buffer.substring(newlineIndex + 1); // Remove processed line from buffer
+
+                            if (line.length === 0) continue; // Skip empty lines
+
+                            if (line.startsWith('data: ')) {
+                                const jsonData = line.substring(5).trim();
+                                if (jsonData === '[DONE]') {
+                                    this.log('Received [DONE] signal.');
+                                    continue; // Skip the [DONE] signal
+                                }
+                                try {
+                                    const chunkData = JSON.parse(jsonData);
+                                    if (chunkData.choices && chunkData.choices[0] && chunkData.choices[0].delta && chunkData.choices[0].delta.content) {
+                                        const content = chunkData.choices[0].delta.content;
+                                        jsonlBuffer += content; // Append content to JSONL buffer
+
+                                        // Process complete JSONL lines from the jsonlBuffer
+                                        jsonlBuffer = this.processAccumulatedJsonL(jsonlBuffer);
+                                    }
+                                    // Store token usage if available in the chunk (some APIs might send it incrementally or at the end)
+                                    if (chunkData.usage) {
+                                        this.promptTokens = chunkData.usage.prompt_tokens || this.promptTokens;
+                                        this.completionTokens = chunkData.usage.completion_tokens || this.completionTokens;
+                                        this.totalTokens = chunkData.usage.total_tokens || this.totalTokens;
+                                    }
+
+                                } catch (e) {
+                                    this.log(`Error parsing chunk JSON: "${jsonData}" - ${e.message}`);
+                                }
+                            } else {
+                                this.log(`Ignoring non-data line: ${line}`);
+                            }
+                        }
+
+                        // Continue reading the stream
+                        return reader.read().then(processChunk);
+                    };
+
+                    return reader.read().then(processChunk);
+                })
+                .catch(error => {
+                    this.log(`Streaming error: ${error.message}`);
+                    this.updateStatus(`Error (API Call: ${error.message})`);
+                });
+            }
+
+            // Process accumulated JSONL content, parsing complete lines
+            processAccumulatedJsonL(buffer) {
+                let remainingBuffer = buffer;
+                let newlineIndex;
+
+                // Process all complete lines found in the buffer
+                while ((newlineIndex = remainingBuffer.indexOf('\n')) >= 0) {
+                    const jsonLine = remainingBuffer.substring(0, newlineIndex).trim();
+                    remainingBuffer = remainingBuffer.substring(newlineIndex + 1); // Keep the rest for later
+
+                    if (jsonLine.length > 0) {
+                        this.processCompleteJsonL(jsonLine);
+                    }
+                }
+
+                // Return the part of the buffer that doesn't form a complete line yet
+                return remainingBuffer;
+            }
+
+            // Helper function to process a single COMPLETE JSONL line
+            processCompleteJsonL(jsonString) {
+                 // Remove markdown code block fences if present at start/end of line
+                 if (jsonString.startsWith('```jsonl')) jsonString = jsonString.substring(7).trim();
+                 if (jsonString.startsWith('```')) jsonString = jsonString.substring(3).trim();
+                 if (jsonString.endsWith('```')) jsonString = jsonString.substring(0, jsonString.length - 3).trim();
+
+                 // Ignore empty lines after cleaning
+                 if (jsonString.length === 0) {
+                    return;
+                 }
+
+                 // Try parsing the line as JSON
+                 try {
+                     const item = JSON.parse(jsonString);
+
+                     // Check if it has the expected format
+                     if (item.box_2d && item.org !== undefined && item.res !== undefined) {
+                         const boundingBox = item.box_2d;
+                         const originalText = item.org;
+                         const translatedText = item.res;
+
+                         // Basic validation for bounding box
+                         if (!Array.isArray(boundingBox) || boundingBox.length !== 4 || boundingBox.some(coord => typeof coord !== 'number')) {
+                             this.log(`Invalid bounding box format: ${JSON.stringify(boundingBox)} in line: ${jsonString}`);
+                             return;
+                         }
+
+                         // Check if we already have this item (simple check based on text and box)
+                         // Comparing bounding boxes directly might be too strict if there are minor float differences.
+                         // Consider adding a tolerance or focusing on text uniqueness if needed.
+                         const exists = this.translations.some(t =>
+                             t.originalText === originalText &&
+                             t.translatedText === translatedText &&
+                             JSON.stringify(t.boundingBox) === JSON.stringify(boundingBox)
+                         );
+
+                         if (!exists) {
+                             // Add to translations
+                             this.translations.push({
+                                 boundingBox,
+                                 originalText,
+                                 translatedText
+                             });
+                             this.log(`Processed translation item: ${JSON.stringify(item)}`);
+
+                             // Add result card and update display
+                             const index = this.translations.length - 1;
+                             this.addResultCard(index);
+                             this.drawBoundingBoxes(); // Draw boxes as they arrive
+                         } else {
+                            this.log(`Skipping duplicate translation item: ${jsonString}`);
+                         }
+                     } else {
+                         this.log(`Parsed JSON object does not match expected format: ${jsonString}`);
+                     }
+                 } catch (e) {
+                     this.log(`Error parsing JSONL line: "${jsonString}" - ${e.message}`);
+                 }
+            }
+
+            // Add a result card to the results container
+            addResultCard(index) {
+                if (index < 0 || index >= this.translations.length) return;
+                
+                const item = this.translations[index];
+                
+                // Create card element
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.dataset.index = index;
+                
+                // Add header
+                const header = document.createElement('div');
+                header.className = 'result-card-header';
+                header.textContent = `Result ${index + 1} / Box: ${JSON.stringify(item.boundingBox)}`;
+                
+                // Add content
+                const content = document.createElement('div');
+                content.className = 'result-card-content';
+                
+                // Add original text
+                const origRow = document.createElement('div');
+                origRow.className = 'result-text-row';
+                
+                const origLabel = document.createElement('span');
+                origLabel.className = 'result-text-label';
+                origLabel.textContent = 'Original:';
+                
+                const origText = document.createElement('div');
+                origText.className = 'result-text';
+                origText.textContent = item.originalText;
+                
+                origRow.appendChild(origLabel);
+                origRow.appendChild(origText);
+                
+                // Add translated text
+                const transRow = document.createElement('div');
+                transRow.className = 'result-text-row';
+                
+                const transLabel = document.createElement('span');
+                transLabel.className = 'result-text-label';
+                transLabel.textContent = 'Translated:';
+                
+                const transText = document.createElement('div');
+                transText.className = 'result-text';
+                transText.textContent = item.translatedText;
+                
+                transRow.appendChild(transLabel);
+                transRow.appendChild(transText);
+                
+                // Assemble card
+                content.appendChild(origRow);
+                content.appendChild(transRow);
+                card.appendChild(header);
+                card.appendChild(content);
+                
+                // Add click handler
+                card.addEventListener('click', () => this.selectTranslation(index));
+                
+                // Add to container
+                this.resultsContainer.appendChild(card);
+                
+                return card;
+            }
+        }
+
+        // Initialize the application when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.comicTranslator = new ComicTranslator();
+        });
+    </script>
+</body>
+</html>
